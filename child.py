@@ -9,15 +9,15 @@ class Child(nn.Module):
 
         list = nn.ModuleList()
         for item in config.values():
-            current_conv_layer = nn.conv2D(in_channels = item.input_dim,
-                                           out_channels = item.output_dim,
-                                           kernel_size = item.kernel_size,
+            current_conv_layer = nn.conv2D(in_channels=item.input_dim,
+                                           out_channels=item.output_dim,
+                                           kernel_size=item.kernel_size,
                                            stride=1,
                                            dilation=1,
                                            groups=1,
                                            bias=True,
                                            padding_mode='zeros')
-            current_pooling_layer = torch.nn.MaxPool2d(kernel_size = item.kernel_size,
+            current_pooling_layer = torch.nn.MaxPool2d(kernel_size=item.kernel_size,
                                                        stride=None,
                                                        dilation=1,
                                                        return_indices=False,
@@ -33,4 +33,3 @@ class Child(nn.Module):
     def forward(self, x):
         x = self.net(x)
         return x
-
