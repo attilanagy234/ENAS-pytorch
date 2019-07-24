@@ -4,18 +4,47 @@ from controller import Controller
 from builder import Builder
 import torch.nn.functional as F
 
+from collections import namedtuple
+
+layer = namedtuple('layer', 'kernel_size  padding pooling_size input_dim output_dim')
+
 
 class NetManager(object):
 
-    def __init__(self, log_interval, num_of_children):
+    def __init__(self, log_interval, num_of_children, input_dim, output_dim, lr, param_per_layer, num_of_layers):
+
         self.log_interval = log_interval
-        self.children = list()
         self.num_of_children = num_of_children
-        self.builder = Builder()
+
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+
+        self.param_per_layer = param_per_layer
+        self.num_of_layers = num_of_layers
+
         self.controller = Controller()
+        self.children = list()
 
 
+    def make_config(self, raw_config):
+        config = dict()
 
+        prev_dim = self.input_dim
+        list_config = raw_config.split()
+
+        for layer_i in range(self.num_of_layers, self.param_per_layer):
+            kernel_size = 3 if list_config[layer_i * self.param_per_layer + 0] < 4 else 5
+            padding = 3 if list_config[layer_i * self.param_per_layer + 1] < 4 else 5
+            pooling_size = 3 if list_config[layer_i * self.param_per_layer + 2] < 4 else 5
+            input_dim = prev_dim
+            output_dim = round(list_config[layer_i * self.param_per_layer + 3])
+            prev_dim = output_dim
+
+            current = layer(kernel_size, padding, pooling_size, input_dim, output_dim)
+
+            config["layer_" + layer_i] = current
+
+        return config
 
     def sample_child(self):
         return self.controller.sample()
