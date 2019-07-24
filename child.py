@@ -29,7 +29,7 @@ class Child(nn.Module):
 
         self.net = nn.Sequential(*list)
 
-        self.fc1 = nn.Linear(item.output_dim, item.output_dim // 2)  # TODO : refactor
+        self.fc1 = nn.Linear(20, item.output_dim // 2)  # TODO : refactor
         self.fc2 = nn.Linear(item.output_dim // 2, num_classes)
 
         self.optimizer = torch.optim.SGD(self.net.parameters(),

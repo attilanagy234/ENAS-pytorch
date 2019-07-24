@@ -92,28 +92,28 @@ class NetManager(object):
                 loss += sampled_logprobs * reward
 
             loss /= self.num_of_children
-            loss.backwards(retrain_graph=True)  # retrain_graph: keep the gradients, idk if we need this but tdvries does
+            loss.backward(retrain_graph=True)  # retrain_graph: keep the gradients, idk if we need this but tdvries does
 
             # grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), child_grad_bound) #normalize gradient
             optimizer.step()
             model.zero_grad()
 
-    def train_child(self, child, device, train_loader):
+    def train_child(self, child, device, train_loader, epochs):
 
         child.train()
+        for epoch_idx in range(epochs):
+            for batch_idx, (images, labels) in enumerate(train_loader):
+                images, labels = images.to(device), labels.to(device)
+                child.optimizer.zero_grad()
+                prediction = child(images)
+                loss = F.nll_loss(prediction, labels)
+                loss.backward()
+                child.optimizer.step()
 
-        for batch_idx, (images, labels) in enumerate(train_loader):
-            images, labels = images.to(device), labels.to(device)
-            child.optimizer.zero_grad()
-            prediction = child(images)
-            loss = F.nll_loss(prediction, labels)
-            loss.backwards()
-            child.optimizer.step()
-
-            if batch_idx % 5 == 0:
-                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                    1, batch_idx * len(images), len(train_loader.dataset),
-                           100. * batch_idx / len(train_loader), loss.item()))
+                if batch_idx % 5 == 0:
+                    print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+                        epoch_idx, batch_idx * len(images), len(train_loader.dataset),
+                               100. * batch_idx / len(train_loader), loss.item()))
 
     def test_child(self, child, device, valid_loader):
 
