@@ -14,6 +14,9 @@ class NetManager(object):
         self.builder = Builder()
         self.controller = Controller()
 
+
+
+
     def sample_child(self):
         return self.controller.sample()
 
@@ -21,36 +24,73 @@ class NetManager(object):
         for i in range(self.num_of_children):
             self.children.append(self.controller.sample())
 
-    def train_children(self, device, data_loader, optimizer, epoch):
-        for child in self.children:
-            child.train()
-            for batch_idx, (data, target) in enumerate(data_loader):
-                data, target = data.to(device), target.to(device)
-                optimizer.zero_grad()
-                output = child(data)
-                loss = F.cross_entropy(output, target)
-                loss.backward()
-                optimizer.step()
-                if batch_idx % self.log_interval == 0:
-                    print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                        epoch, batch_idx * len(data), len(data_loader.dataset),
-                               100. * batch_idx / len(data_loader), loss.item()))
+    def train_controller(self, model, device, data_loader, optimizer, epoch, entropy_weight=0.0001):
+        model.train()
 
-    def get_losses(self, device, data_loader):
-        for child in self.children:
-            child.eval()
-            test_loss = 0
-            correct = 0
-            with torch.no_grad():
-                for data, target in data_loader:
-                    data, target = data.to(device), target.to(device)
-                    output = child(data)
-                    test_loss += F.cross_entropy(output, target, reduction='sum').item()  # sum up batch loss
-                    pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
-                    correct += pred.eq(target.view_as(pred)).sum().item()
+        valid_loader = data_loader["validation"]
+        train_loader = data_loader["train"]
 
-            test_loss /= len(data_loader.dataset)
+        for epoch_idx in range(epoch):
+            loss = torch.FloatTensor([0])
+            for child_idx in range(self.num_of_children):
+                # images, labels.cuda()
 
-            print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-                test_loss, correct, len(data_loader.dataset),
-                100. * correct / len(data_loader.dataset)))
+                model()  # forward pass without input
+                sampled_architecture = model.sampled_architecture
+                sampled_entropies = model.sampled_entropies
+                sampled_logprobs = model.sampled_logprobs
+
+                # get the acc of a single child
+
+                child = self.builder(sampled_architecture)
+                child.train(train_loader)
+                validation_accuracy = child.test(valid_loader)
+
+                # with torch.no_grad():
+                #    prediction = builder(sampled_architecture)(images)
+                # validation_accuracy = torch.mean((torch.max(prediction, 1)[1] == labels).type(torch.float)) #TODO: this shoudl be changed according to the data
+                # or F.nll_loss(prediction, labels, reduction = "sum").item()  #sum up batch loss
+
+                reward = torch.tensor(100 - validation_accuracy).detach()
+                reward += sampled_entropies * entropy_weight
+
+                # calculate advantage with baseline (moving avg)
+
+                loss += sampled_logprobs * reward
+
+            loss /= self.num_of_children
+            loss.backwards(retrain_graph=True)  # retrain_graph: keep the gradients, idk if we need this but tdvries does
+
+            # grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), child_grad_bound) #normalize gradient
+            optimizer.step()
+            model.zero_grad()
+
+    def train_child(self, child, device, train_loader):
+
+        child.train()
+
+        for batch_idx, (images, labels) in enumerate(train_loader):
+            images, labels = images.to(device), labels.to(device)
+            child.optimizer.zero_grad()
+            prediction = child(images)
+            loss = F.nll_loss(prediction, labels)
+            loss.backwards()
+            child.optimizer.step()
+
+            print(loss)
+
+    def test_child(self, child, device, valid_loader):
+
+        child.eval()
+        validation_loss = 0
+        correct = 0
+
+        with torch.no_grad():
+            for images, labels in valid_loader:
+                images, labels = images.to(device), labels.to(device)
+                prediction_probs = child(images)
+                validation_loss += F.nll_loss(prediction_probs, labels, reduction="sum").item()  # batch loss
+                prediction = prediction_probs.arg_max(dim=1, keepdim=True)  # index of max logprob
+                correct += prediction.eq(labels.view_as(prediction)).sum().item()
+
+        validation_loss /= len(valid_loader.dataset)
