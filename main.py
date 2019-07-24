@@ -1,3 +1,4 @@
+from net_manager import NetManager
 
 if __name__ == "__main__":
     '''
@@ -6,3 +7,5 @@ if __name__ == "__main__":
     net_manager = NetManager()
     net_manager.start(data)
     '''
+
+    netmanager = NetManager(5, 5, 5, 5, 5, 5, 5, 5)

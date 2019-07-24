@@ -1,7 +1,8 @@
+from typing import Dict, Union
+
 import torch
 
 from controller import Controller
-from builder import Builder
 import torch.nn.functional as F
 
 from collections import namedtuple
@@ -11,7 +12,7 @@ layer = namedtuple('layer', 'kernel_size  padding pooling_size input_dim output_
 
 class NetManager(object):
 
-    def __init__(self, log_interval, num_of_children, input_dim, output_dim, lr, param_per_layer, num_of_layers):
+    def __init__(self, log_interval, num_of_children, input_dim, output_dim, lr, param_per_layer, num_of_layers, out_filters):
 
         self.log_interval = log_interval
         self.num_of_children = num_of_children
@@ -22,7 +23,7 @@ class NetManager(object):
         self.param_per_layer = param_per_layer
         self.num_of_layers = num_of_layers
 
-        self.controller = Controller()
+        self.controller = Controller(num_of_layers, param_per_layer, 15, 2, out_filters)
         self.children = list()
 
 
