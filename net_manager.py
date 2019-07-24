@@ -32,18 +32,21 @@ class NetManager(object):
 
         prev_dim = self.input_dim
         list_config = raw_config.split()
+        list_config = list(map(int, list_config))
 
-        for layer_i in range(self.num_of_layers, self.param_per_layer):
-            kernel_size = 3 if list_config[layer_i * self.param_per_layer + 0] < 4 else 5
-            padding = 3 if list_config[layer_i * self.param_per_layer + 1] < 4 else 5
-            pooling_size = 3 if list_config[layer_i * self.param_per_layer + 2] < 4 else 5
+        for layer_i in range(0, self.num_of_layers * self.param_per_layer, self.param_per_layer):
+            print(layer_i)
+            kernel_size = 3 if list_config[layer_i + 0] < 4 else 5
+            padding = 3 if list_config[layer_i + 1] < 4 else 5
+            pooling_size = 3 if list_config[layer_i + 2] < 4 else 5
             input_dim = prev_dim
-            output_dim = round(list_config[layer_i * self.param_per_layer + 3])
+            output_dim = round(list_config[layer_i + 3])
             prev_dim = output_dim
 
             current = layer(kernel_size, padding, pooling_size, input_dim, output_dim)
-
-            config["layer_" + layer_i] = current
+            print(current)
+            config["layer_" + str(layer_i)] = current
+            print(config)
 
         return config
 
@@ -107,7 +110,10 @@ class NetManager(object):
             loss.backwards()
             child.optimizer.step()
 
-            print(loss)
+            if batch_idx % 5 == 0:
+                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+                    1, batch_idx * len(images), len(train_loader.dataset),
+                           100. * batch_idx / len(train_loader), loss.item()))
 
     def test_child(self, child, device, valid_loader):
 
