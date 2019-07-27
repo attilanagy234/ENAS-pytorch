@@ -7,7 +7,7 @@ import torch.nn.functional as F
 
 from collections import namedtuple
 
-layer = namedtuple('layer', 'kernel_size  padding pooling_size input_dim output_dim')
+layer = namedtuple('layer', 'kernel_size stride pooling_size input_dim output_dim')
 
 
 class NetManager(object):
@@ -33,20 +33,18 @@ class NetManager(object):
         prev_dim = self.input_dim
         list_config = raw_config.split()
         list_config = list(map(int, list_config))
-
+        print(prev_dim)
         for layer_i in range(0, self.num_of_layers * self.param_per_layer, self.param_per_layer):
-            print(layer_i)
+
             kernel_size = 3 if list_config[layer_i + 0] < 4 else 5
-            padding = 3 if list_config[layer_i + 1] < 4 else 5
-            pooling_size = 3 if list_config[layer_i + 2] < 4 else 5
+            stride = 0 if list_config[layer_i + 1] < 0.5 else 1
+            pooling_size = 0 if list_config[layer_i + 2] < 4 else 3  #if =0 then no pooling layer
             input_dim = prev_dim
             output_dim = round(list_config[layer_i + 3])
             prev_dim = output_dim
 
-            current = layer(kernel_size, padding, pooling_size, input_dim, output_dim)
-            print(current)
+            current = layer(kernel_size, stride, pooling_size, input_dim, output_dim)
             config["layer_" + str(layer_i)] = current
-            print(config)
 
         return config
 

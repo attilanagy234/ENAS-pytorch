@@ -1,41 +1,68 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from math import floor
 
 
 class Child(nn.Module):
 
-    def __init__(self, config, lr, l2_decay, num_classes):
+    def __init__(self, config, lr, momentum, num_classes, input_shape):
         super(Child, self).__init__()
 
-        list = nn.ModuleList()
-        for item in config.values():
-            current_conv_layer = nn.Conv2d(in_channels=item.input_dim,
-                                           out_channels=item.output_dim,
-                                           kernel_size=item.kernel_size,
-                                           stride=1,
+        modules = nn.ModuleList()
+        height_width = input_shape
+        last_out_dim = 0
+
+        for layer_param in config.values():
+
+            modules.append(nn.Conv2d(in_channels=layer_param.input_dim,
+                                           out_channels=layer_param.output_dim,
+                                           kernel_size=layer_param.kernel_size,
+                                           stride=layer_param.stride,
                                            dilation=1,
                                            groups=1,
                                            bias=True,
-                                           padding_mode='zeros')
+                                           padding=2)
+                           )
 
-            current_pooling_layer = torch.nn.MaxPool2d(kernel_size=item.kernel_size,
-                                                       stride=None,
+
+            modules.append(torch.nn.ReLU())
+
+            modules.append(torch.nn.MaxPool2d(kernel_size=layer_param.pooling_size,
+                                                       stride=1,
                                                        dilation=1,
                                                        return_indices=False,
                                                        ceil_mode=False)
-            list.append(current_conv_layer)
-            list.append(nn.modules.activation.LeakyReLU())
-            list.append(current_pooling_layer)
+                           )
 
-        self.net = nn.Sequential(*list)
+            height_width = self._conv2d_output_shape(height_width, layer_param.kernel_size, layer_param.stride, 2, 1)
+            last_out_dim = layer_param.output_dim
 
-        self.fc1 = nn.Linear(20, 20)  # TODO : refactor
-        self.fc2 = nn.Linear(20, num_classes)
+            height_width = self._pooling2d_output_shape(height_width, kernel_size=layer_param.pooling_size, stride=1, dilation=1)
 
-        self.optimizer = torch.optim.SGD(self.net.parameters(),
-                                         lr=lr, momentum=0.9,
-                                         nesterov=True)
+            #print(height_width, layer_param.output_dim)
+
+
+        convOut_dim = height_width[0] *  height_width[0] * last_out_dim
+
+        self.net = nn.Sequential(*modules)
+        self.fc1 = nn.Linear(in_features=convOut_dim, out_features=500)
+        self.fc2 = nn.Linear(500, num_classes)
+
+        self.optimizer = torch.optim.SGD(self.net.parameters(),lr=lr, momentum=momentum)
+
+    def _conv2d_output_shape(self, h_w, kernel_size=1, stride=1, pad=0, dilation=1):
+        h = floor(((h_w[0] + (2 * pad) - (dilation * (kernel_size - 1)) - 1) / stride) + 1)
+        w = floor(((h_w[1] + (2 * pad) - (dilation * (kernel_size - 1)) - 1) / stride) + 1)
+        return h, w
+
+
+    def _pooling2d_output_shape(self, h_w, kernel_size=1, stride=1, pad=0, dilation=1):
+        """(W1-f)/s +1 , H2=(H1-f)/s+1"""
+        h = floor(((h_w[0] - kernel_size) // stride) + 1)
+        w = floor(((h_w[1] - kernel_size) // stride) + 1)
+        return h, w
+
 
     def forward(self, x):
         x = self.net(x)
