@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class Child(nn.Module):
@@ -29,13 +30,12 @@ class Child(nn.Module):
 
         self.net = nn.Sequential(*list)
 
-        self.fc1 = nn.Linear(20, item.output_dim // 2)  # TODO : refactor
-        self.fc2 = nn.Linear(item.output_dim // 2, num_classes)
+        self.fc1 = nn.Linear(20, 20)  # TODO : refactor
+        self.fc2 = nn.Linear(20, num_classes)
 
         self.optimizer = torch.optim.SGD(self.net.parameters(),
                                          lr=lr, momentum=0.9,
-                                         nesterov=True,
-                                         weight_decay=l2_decay)
+                                         nesterov=True)
 
     def forward(self, x):
         x = self.net(x)
@@ -43,4 +43,4 @@ class Child(nn.Module):
         x = self.fc1(x)
         x = self.fc2(x)
 
-        return x
+        return F.log_softmax(x, dim=1)

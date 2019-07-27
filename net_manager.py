@@ -126,7 +126,13 @@ class NetManager(object):
                 images, labels = images.to(device), labels.to(device)
                 prediction_probs = child(images)
                 validation_loss += F.nll_loss(prediction_probs, labels, reduction="sum").item()  # batch loss
-                prediction = prediction_probs.arg_max(dim=1, keepdim=True)  # index of max logprob
+                prediction = prediction_probs.argmax(dim=1, keepdim=True)  # index of max logprob
                 correct += prediction.eq(labels.view_as(prediction)).sum().item()
 
         validation_loss /= len(valid_loader.dataset)
+
+        print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+            validation_loss, correct, len(valid_loader.dataset),
+            100. * correct / len(valid_loader.dataset)))
+
+        return validation_loss, correct/len(valid_loader)
