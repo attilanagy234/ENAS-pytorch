@@ -4,6 +4,7 @@ import torch
 from torchvision import datasets, transforms
 import torch
 import numpy as np
+from tensorboardX import SummaryWriter
 import datetime
 
 # Install latest Tensorflow build
@@ -12,7 +13,7 @@ from tensorflow import summary
 
 def get_dataLoaders(train_bs, test_bs):
     train_loader = torch.utils.data.DataLoader(
-        datasets.MNIST('../data', train=True, download=True,
+        datasets.MNIST('../data', train=True, download=False,
                        transform=transforms.Compose([
                            transforms.ToTensor(),
                            transforms.Normalize((0.1307,), (0.3081,))
@@ -34,12 +35,9 @@ if __name__ == "__main__":
     torch.manual_seed(69)
     np.random.seed(360)
 
-    # TensorBoard TODO
-    '''
-    current_time = str(datetime.datetime.now().timestamp())
-    logDir = 'logs/tensorboard/train' + current_time
-    summaryWriter = summary.create_file_writer(logDir)
-    '''
+    currenttime = datetime.datetime.now()
+    writer = SummaryWriter("runs/" + str(currenttime))
+
 
     # Hyperparameters
     batch_size = 100
@@ -50,12 +48,12 @@ if __name__ == "__main__":
     param_per_layer = 4
     num_of_layers = 2
     input_dim = (28, 28)
-    num_of_children = 2
-    epoch_controller = 1
+    num_of_children = 3
+    epoch_controller = 3
     epoch_child = 1
     entropy_weight = 0.1  # to encourage exploration
     loginterval = 5
-    input_dim = 1
+    input_channels = 1
     output_dim = 10
     controller_size = 5
     controller_layers = 2
@@ -64,12 +62,14 @@ if __name__ == "__main__":
     train_loader, test_loader = get_dataLoaders(batch_size, 1000)
 
     # Device
-    use_cuda = True
+    use_cuda = False
+
     device = torch.device("cuda" if use_cuda else "cpu")
 
-    net_manager = NetManager(loginterval,
+    net_manager = NetManager(writer,
+                             loginterval,
                              num_of_children,
-                             input_dim,
+                             input_channels,
                              output_dim,
                              learning_rate_child,
                              param_per_layer,
@@ -92,3 +92,5 @@ if __name__ == "__main__":
                                  epoch_controller,
                                  momentum,
                                  entropy_weight)
+
+    writer.close()

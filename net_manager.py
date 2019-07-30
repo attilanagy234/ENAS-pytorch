@@ -10,9 +10,11 @@ layer = namedtuple('layer', 'kernel_size stride pooling_size input_dim output_di
 
 class NetManager(object):
 
-    def __init__(self, log_interval, num_of_children, input_dim, output_dim, learning_rate_child, param_per_layer,
+    def __init__(self, writer, log_interval, num_of_children, input_dim, output_dim, learning_rate_child,
+                 param_per_layer,
                  num_of_layers, out_filters, controller_size, controller_layers):
 
+        self.writer = writer
         self.log_interval = log_interval
         self.num_of_children = num_of_children
 
@@ -40,13 +42,13 @@ class NetManager(object):
 
         for layer_i in range(0, self.num_of_layers * self.param_per_layer, self.param_per_layer):
             kernel_size = 3 if list_config[layer_i + 0] < 4 else 5
-            stride = 1  # if list_config[layer_i + 1] < 0.5 else 2
+            stride = 1 if list_config[layer_i + 1] < 0.5 else 2
             pooling_size = 2 if list_config[layer_i + 2] < 4 else 3  # if =0 then no pooling layer
             input_dim = prev_dim
-            output_dim = abs(round(list_config[layer_i + 3])) + 1
-            prev_dim = output_dim
+            out_channels = abs(round(list_config[layer_i + 3])) + 1
+            prev_dim = out_channels
 
-            current = layer(kernel_size, stride, pooling_size, input_dim, output_dim)
+            current = layer(kernel_size, stride, pooling_size, input_dim, out_channels)
             config["layer_" + str(layer_i)] = current
 
         return config
@@ -58,8 +60,8 @@ class NetManager(object):
         for i in range(self.num_of_children):
             self.children.append(self.controller.sample())
 
-    def train_controller(self, model, optimizer, device, train_loader, valid_loader, epoch, learning_rate, momentum,
-                         entropy_weight=0.0001):
+    def train_controller(self, model, optimizer, device, train_loader, valid_loader, epoch, momentum,
+                         entropy_weight):
 
         model.train()
 
@@ -67,6 +69,8 @@ class NetManager(object):
             loss = torch.FloatTensor([0])
             for child_idx in range(self.num_of_children):
                 # images, labels.cuda()
+
+                step = epoch_idx * self.num_of_children + child_idx
 
                 model()  # forward pass without input
                 sampled_architecture = model.sampled_architecture
@@ -94,12 +98,26 @@ class NetManager(object):
 
                 loss += sampled_logprobs * reward
 
+                # logging to tensorboard
+                self.writer.add_scalar("loss", loss.item(), global_step=step)
+                self.writer.add_scalar("reward", reward, global_step=step)
+                self.writer.add_scalar("valid_acc", validation_accuracy, global_step=step)
+
+                self.writer.add_scalar("entropy_weight", entropy_weight, global_step=epoch_idx)
+                self.writer.add_histogram("sampled_arc", model.sampled_architecture, global_step=epoch_idx)
+                self.writer.add_histogram("sampled_logprobs", model.sampled_logprobs, global_step=epoch_idx)
+                self.writer.add_histogram("sampled_entropies", model.sampled_entropies, global_step=epoch_idx)
+
+                print("sampled_arc", model.sampled_architecture, epoch_idx)
+
             loss /= self.num_of_children
             loss.backward(retain_graph=True)  # retrain_graph: keep the gradients, idk if we need this but tdvries does
 
             # to normalize gradients : grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), gradBound) #normalize gradient
             optimizer.step()
             model.zero_grad()
+
+            self.writer.add_scalar("epoch_loss", loss.item(), global_step=epoch_idx)
 
     def train_child(self, child, device, train_loader, epochs, ):
 
@@ -140,4 +158,4 @@ class NetManager(object):
             validation_loss, correct, len(valid_loader.dataset),
             100. * correct / len(valid_loader.dataset)))
 
-        return correct / len(valid_loader)
+        return 100. * correct / len(valid_loader.dataset)
