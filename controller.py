@@ -1,62 +1,90 @@
+import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torch.distributions import Categorical
+from torch.autograd import Variable
+from torch.distributions.categorical import Categorical
 
 
 class Controller(nn.Module):
 
-    def __init__(self, num_layers, num_actions, lstm_size, lstm_num_layers, out_filters):
+    def __init__(self, num_layers=2, num_branches=4, lstm_size=5, lstm_num_layers=2, tanh_constant=1.5,
+                 temperature=None):
+
         super(Controller, self).__init__()
+
         self.num_layers = num_layers
-        self.num_actions = num_actions
+        self.num_branches = num_branches
+
         self.lstm_size = lstm_size
         self.lstm_num_layers = lstm_num_layers
-        self.out_filters = out_filters
+        self.tanh_constant = tanh_constant
+        self.temperature = temperature
 
-        self.lstm = nn.LSTM(input_size=lstm_size, hidden_size=lstm_size, num_layers=lstm_num_layers)
+        self.w_lstm = nn.LSTM(input_size=self.lstm_size,
+                              hidden_size=self.lstm_size,
+                              num_layers=self.lstm_num_layers)
 
-        self.g_embedding = nn.Embedding(num_embeddings=1, embedding_dim=lstm_size)  # inputs = g_embedding().weight
-        self.w_embedding = nn.Embedding(num_embeddings=num_actions, embedding_dim=lstm_size)
-        self.soft_embedding = nn.Embedding(num_embeddings=lstm_size, embedding_dim=num_actions)
+        self.g_emb = nn.Embedding(1, self.lstm_size)  # Learn the starting input
 
-        self.sampled_architecture = list()
-        self.sampled_entropies = list()
-        self.sampled_logprobs = list()
+        self.w_emb = nn.Embedding(self.num_branches, self.lstm_size)
 
-    def reset_params(self):
-        raise NotImplementedError()
+        self.w_soft = nn.Linear(self.lstm_size, self.num_branches, bias=False)
+
+        self._reset_params()
+
+    def _reset_params(self):
+        print("reset params")
+
+        for m in self.modules():
+            if isinstance(m, nn.Linear) or isinstance(m, nn.Embedding):
+                nn.init.uniform_(m.weight, -0.1, 0.1)
+
+        nn.init.uniform_(self.w_lstm.weight_hh_l0, -0.1, 0.1)
+        nn.init.uniform_(self.w_lstm.weight_ih_l0, -0.1, 0.1)
 
     def forward(self):
-        architecture = dict()
-        entropies = list()
-        logprobs = list()
-        inputs = self.g_embedding().weight  # =learnable weight of the module of shape(num_embeddings, embedding_dim) initialized as N(0,1)
-        hidden_state = None  # =nulltensor
+        h0 = None  # setting h0 to None will initialize LSTM state with 0s
+        arc_seq = []
+        entropys = []
+        log_probs = []
+        skip_count = []
+        skip_penaltys = []
 
-        for layer_i in range(self.num_layers):
-            # forward prop
-            inputs = inputs.unsqueeze(0)
+        inputs = self.g_emb.weight
 
-            outputs, hidden_state_next = self.lstm(inputs, hidden_state)
-            outputs.unsqeeze(0)
+        for layer_id in range(self.num_layers):
+            for branch_id in range(self.num_branches):
+                inputs = inputs.view(1, 1, -1)
+                output, hn = self.w_lstm(inputs, h0)
+                output = output.squeeze(0)
+                h0 = hn
 
-            hidden_state = hidden_state_next
+                logit = self.w_soft(output)
 
-            logits = self.soft_embedding(outputs)
-            # apply temperature / tanh_const
+                if self.temperature is not None:
+                    logit /= self.temperature
+                if self.tanh_constant is not None:
+                    logit = self.tanh_constant * torch.tanh(logit)
 
-            # sample an action
-            action_distribution = Categorical(logits=logits)
-            action_id = action_distribution.sample()
+                out_dist = Categorical(logits=logit)
+                out_id = out_dist.sample()
 
-            architecture[str(layer_i)] = action_id
+                arc_seq.append(out_id.item())
 
-            logprobs.append(action_distribution.log_prob(action_id))
+                log_prob = out_dist.log_prob(out_id)
+                log_probs.append(log_prob.view(-1))
+                entropy = out_dist.entropy()
+                entropys.append(entropy.view(-1))
 
-            entropies.append(action_distribution.entropy())
+                inputs = self.w_emb(out_id)
+                inputs = inputs.unsqueeze(0)
 
-            inputs = self.w_embedding(action_id).unsqueeze(0)
+                output, hn = self.w_lstm(inputs, h0)
+                output = output.squeeze(0)
 
-        self.sampled_architecture = architecture
-        self.sampled_entropies = entropies
-        self.sampled_logprobs = logprobs
+        self.sampled_architecture = arc_seq
+
+        entropys = torch.cat(entropys)
+        self.sampled_entropies = torch.sum(entropys)
+
+        log_probs = torch.cat(log_probs)
+        self.sampled_logprobs = torch.sum(log_probs)
