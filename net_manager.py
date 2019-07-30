@@ -26,7 +26,7 @@ class NetManager(object):
 
         self.learning_rate_child = learning_rate_child
 
-        self.controller = Controller(num_of_layers, param_per_layer, controller_size,
+        self.controller = Controller(writer, num_of_layers, param_per_layer, controller_size,
                                      controller_layers)  # self,num_layers=2,num_branches=4,lstm_size=5,lstm_num_layers=2,tanh_constant=1.5,temperature=None
         self.children = list()
 
@@ -41,11 +41,11 @@ class NetManager(object):
         list_config = list(map(int, raw_config))
 
         for layer_i in range(0, self.num_of_layers * self.param_per_layer, self.param_per_layer):
-            kernel_size = 3 if list_config[layer_i + 0] < 4 else 5
-            stride = 1 if list_config[layer_i + 1] < 0.5 else 2
-            pooling_size = 2 if list_config[layer_i + 2] < 4 else 3  # if =0 then no pooling layer
+            kernel_size = 3 if list_config[layer_i + 0] else 5
+            stride = 1 if list_config[layer_i + 1] else 2
+            pooling_size = 2 if list_config[layer_i + 2] else 2
             input_dim = prev_dim
-            out_channels = abs(round(list_config[layer_i + 3])) + 1
+            out_channels = 10 if list_config[layer_i + 2] else 20
             prev_dim = out_channels
 
             current = layer(kernel_size, stride, pooling_size, input_dim, out_channels)
@@ -65,20 +65,22 @@ class NetManager(object):
 
         model.train()
 
+        step = 0
         for epoch_idx in range(epoch):
             loss = torch.FloatTensor([0])
+            epoch_valacc = torch.FloatTensor([0])
             for child_idx in range(self.num_of_children):
                 # images, labels.cuda()
 
-                step = epoch_idx * self.num_of_children + child_idx
+                step += 1
 
                 model()  # forward pass without input
                 sampled_architecture = model.sampled_architecture
-                sampled_entropies = model.sampled_entropies
+                sampled_entropies = model.sampled_entropies.detach()
                 sampled_logprobs = model.sampled_logprobs
 
                 # get the acc of a single child
-
+                print(sampled_architecture)
                 conf = self.make_config(sampled_architecture)
                 print(conf)
                 child = Child(conf, self.learning_rate_child, momentum, 10, (28, 28)).to(device)
@@ -96,21 +98,25 @@ class NetManager(object):
 
                 # calculate advantage with baseline (moving avg)
 
-                loss += sampled_logprobs * reward
+                loss += -sampled_logprobs * reward
+                epoch_valacc += validation_accuracy
+
 
                 # logging to tensorboard
-                self.writer.add_scalar("loss", loss.item(), global_step=step)
-                self.writer.add_scalar("reward", reward, global_step=step)
-                self.writer.add_scalar("valid_acc", validation_accuracy, global_step=step)
+                self.writer.add_scalar("loss", loss.item())
+                self.writer.add_scalar("reward", reward)
+                self.writer.add_scalar("valid_acc", validation_accuracy)
 
-                self.writer.add_scalar("entropy_weight", entropy_weight, global_step=epoch_idx)
-                self.writer.add_histogram("sampled_arc", model.sampled_architecture, global_step=epoch_idx)
-                self.writer.add_histogram("sampled_logprobs", model.sampled_logprobs, global_step=epoch_idx)
-                self.writer.add_histogram("sampled_entropies", model.sampled_entropies, global_step=epoch_idx)
 
-                print("sampled_arc", model.sampled_architecture, epoch_idx)
+
+            self.writer.add_scalar("entropy_weight", entropy_weight)
+            self.writer.add_histogram("sampled_arc", model.sampled_architecture)
+            self.writer.add_scalar("sampled_logprobs", model.sampled_logprobs)
+            self.writer.add_scalar("sampled_entropies", model.sampled_entropies)
 
             loss /= self.num_of_children
+            epoch_valacc /= self.num_of_children
+
             loss.backward(retain_graph=True)  # retrain_graph: keep the gradients, idk if we need this but tdvries does
 
             # to normalize gradients : grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), gradBound) #normalize gradient
@@ -118,6 +124,9 @@ class NetManager(object):
             model.zero_grad()
 
             self.writer.add_scalar("epoch_loss", loss.item(), global_step=epoch_idx)
+            self.writer.add_scalar("epoch_loss", epoch_valacc, global_step=epoch_idx)
+
+        return epoch_valacc
 
     def train_child(self, child, device, train_loader, epochs, ):
 

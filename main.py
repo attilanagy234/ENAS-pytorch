@@ -38,7 +38,6 @@ if __name__ == "__main__":
     currenttime = datetime.datetime.now()
     writer = SummaryWriter("runs/" + str(currenttime))
 
-
     # Hyperparameters
     batch_size = 100
     learning_rate_child = 0.01
@@ -48,10 +47,10 @@ if __name__ == "__main__":
     param_per_layer = 4
     num_of_layers = 2
     input_dim = (28, 28)
-    num_of_children = 3
-    epoch_controller = 3
+    num_of_children = 5
+    epoch_controller = 10
     epoch_child = 1
-    entropy_weight = 0.1  # to encourage exploration
+    entropy_weight = 0.0001  # to encourage exploration
     loginterval = 5
     input_channels = 1
     output_dim = 10
@@ -84,13 +83,34 @@ if __name__ == "__main__":
                                             betas=(0.0, 0.999),
                                             eps=1e-3)
 
-    net_manager.train_controller(net_manager.controller,
-                                 controller_optimizer,
-                                 device,
-                                 train_loader,
-                                 test_loader,
-                                 epoch_controller,
-                                 momentum,
-                                 entropy_weight)
+    val_acc = net_manager.train_controller(net_manager.controller,
+                                           controller_optimizer,
+                                           device,
+                                           train_loader,
+                                           test_loader,
+                                           epoch_controller,
+                                           momentum,
+                                           entropy_weight)
+
+    # writer.add_hparams(({"batch_size": 100,
+    #                     "learning_rate_child": 0.01,
+    #                     "learning_rate_controller": 0.01,
+    #                     "momentum": 0.5,
+    #                     "l2_decay": 0,
+    #                     "param_per_layer": 4,
+    #                     "num_of_layers": 2,
+    #                     "input_dim": (28, 28),
+    #                     "num_of_children": 3,
+    #                     "epoch_controller": 3,
+    #                     "epoch_child": 1,
+    #                     "entropy_weight": 0.1,  # to encourage exploration
+    #                     "loginterval": 5,
+    #                     "input_channels": 1,
+    #                     "controller_size": 5,
+    #                     "output_dim": 10,
+    #                     "controller_layers": 2},
+    #                    {'hparam/accuracy': val_acc}))
+
+
 
     writer.close()

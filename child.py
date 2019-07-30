@@ -28,24 +28,25 @@ class Child(nn.Module):
                            )
 
             height_width = self._conv2d_output_shape(height_width, layer_param.kernel_size, layer_param.stride, 0, 1)
-            height_width = self._pooling2d_output_shape(height_width, kernel_size=layer_param.pooling_size, stride=2,
-                                                        dilation=1)
+            height_width = self._pooling2d_output_shape(height_width, kernel_size=layer_param.pooling_size, stride=2, dilation=1)
+
             last_out_dim = layer_param.output_dim
+
 
         convOut_dim = height_width[0] * height_width[0] * last_out_dim
 
         self.net = nn.Sequential(*modules)
-        self.fc1 = nn.Linear(in_features=convOut_dim, out_features=100)
-        self.fc2 = nn.Linear(100, num_classes)
+        self.fc1 = nn.Linear(in_features=convOut_dim, out_features=50)
+        self.fc2 = nn.Linear(50, num_classes)
 
         self.optimizer = torch.optim.SGD(self.net.parameters(), lr=lr, momentum=momentum)
 
-    def _conv2d_output_shape(self, h_w, kernel_size=1, stride=1, pad=0, dilation=1):
+    def _conv2d_output_shape(self, h_w, kernel_size, stride, pad=0, dilation=1):
         h = floor(((h_w[0] + (2 * pad) - (dilation * (kernel_size - 1)) - 1) / stride) + 1)
         w = floor(((h_w[1] + (2 * pad) - (dilation * (kernel_size - 1)) - 1) / stride) + 1)
         return h, w
 
-    def _pooling2d_output_shape(self, h_w, kernel_size=1, stride=1, pad=0, dilation=1):
+    def _pooling2d_output_shape(self, h_w, kernel_size, stride=1, pad=0, dilation=1):    #TODO: poolingkernerl size = 3 : not matchin dims before fc1: 80 - 320
         """(W1-f)/s +1 , H2=(H1-f)/s+1"""
         h = floor(((h_w[0] - kernel_size) // stride) + 1)
         w = floor(((h_w[1] - kernel_size) // stride) + 1)
