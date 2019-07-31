@@ -3,7 +3,6 @@ import torch.nn as nn
 from torch.autograd import Variable
 from torch.distributions.categorical import Categorical
 
-
 class Controller(nn.Module):
 
     def __init__(self, writer, num_layers=2, num_branches=4, lstm_size=5, lstm_num_layers=2, tanh_constant=1.5,
@@ -25,11 +24,11 @@ class Controller(nn.Module):
                               hidden_size=self.lstm_size,
                               num_layers=self.lstm_num_layers)
 
-        self.g_emb = nn.Embedding(1, self.lstm_size)  # Learn the starting input of the lstm
+        self.g_emb = nn.Embedding(1, self.lstm_size)  # Learn the  input of the lstm
 
         self.w_emb = nn.Embedding(self.num_branches, self.lstm_size)
 
-        self.w_soft = nn.Linear(self.lstm_size, 2, bias=False)  # 2 choice for every parameter
+        self.w_soft = nn.Linear(self.lstm_size, 2, bias=False)  # 2=choice for every parameter
 
         self.sampled_architecture = []
         self.sampled_entropies = []
@@ -64,7 +63,6 @@ class Controller(nn.Module):
                 h0 = hn
 
                 logit = self.w_soft(output)
-
 
                 if self.temperature is not None:
                     logit /= self.temperature

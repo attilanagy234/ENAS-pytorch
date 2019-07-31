@@ -45,7 +45,7 @@ class NetManager(object):
             stride = 1 if list_config[layer_i + 1] else 2
             pooling_size = 2 if list_config[layer_i + 2] else 2
             input_dim = prev_dim
-            out_channels = 10 if list_config[layer_i + 2] else 20
+            out_channels = 20 if list_config[layer_i + 3] else 30
             prev_dim = out_channels
 
             current = layer(kernel_size, stride, pooling_size, input_dim, out_channels)
@@ -69,6 +69,7 @@ class NetManager(object):
         for epoch_idx in range(epoch):
             loss = torch.FloatTensor([0])
             epoch_valacc = torch.FloatTensor([0])
+
             for child_idx in range(self.num_of_children):
                 # images, labels.cuda()
 
@@ -94,31 +95,30 @@ class NetManager(object):
                 # or F.nll_loss(prediction, labels, reduction = "sum").item()  #sum up batch loss
 
                 reward = torch.tensor(validation_accuracy).detach()
-                reward += sampled_entropies * entropy_weight
+                # reward += sampled_entropies * entropy_weight
 
                 # calculate advantage with baseline (moving avg)
 
-                loss += -sampled_logprobs * reward
+                loss += -1 * sampled_logprobs * reward
                 epoch_valacc += validation_accuracy
 
-
                 # logging to tensorboard
-                self.writer.add_scalar("loss", loss.item())
-                self.writer.add_scalar("reward", reward)
-                self.writer.add_scalar("valid_acc", validation_accuracy)
+                self.writer.add_scalar("loss", loss.item(), global_step=step)
+                self.writer.add_scalar("reward", reward, global_step=step)
+                self.writer.add_scalar("valid_acc", validation_accuracy, global_step=step)
 
+            print("step:", step)
 
-
-            self.writer.add_scalar("entropy_weight", entropy_weight)
-            self.writer.add_histogram("sampled_arc", model.sampled_architecture)
-            self.writer.add_scalar("sampled_logprobs", model.sampled_logprobs)
-            self.writer.add_scalar("sampled_entropies", model.sampled_entropies)
+            self.writer.add_scalar("entropy_weight", entropy_weight, global_step=epoch_idx)
+            self.writer.add_histogram("sampled_arcs", model.sampled_architecture, global_step=epoch_idx)
+            self.writer.add_scalar("sampled_logprobs", model.sampled_logprobs, global_step=epoch_idx)
+            self.writer.add_scalar("sampled_entropies", model.sampled_entropies, global_step=epoch_idx)
 
             loss /= self.num_of_children
             epoch_valacc /= self.num_of_children
 
+            # trainig:
             loss.backward(retain_graph=True)  # retrain_graph: keep the gradients, idk if we need this but tdvries does
-
             # to normalize gradients : grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), gradBound) #normalize gradient
             optimizer.step()
             model.zero_grad()

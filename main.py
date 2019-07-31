@@ -1,19 +1,17 @@
-from net_manager import NetManager
-from child import Child
 import torch
 from torchvision import datasets, transforms
 import torch
 import numpy as np
 from tensorboardX import SummaryWriter
 import datetime
-
+from net_manager import NetManager
 # Install latest Tensorflow build
 from tensorflow import summary
 
 
 def get_dataLoaders(train_bs, test_bs):
     train_loader = torch.utils.data.DataLoader(
-        datasets.MNIST('../data', train=True, download=False,
+        datasets.MNIST('../data', train=True, download=True,
                        transform=transforms.Compose([
                            transforms.ToTensor(),
                            transforms.Normalize((0.1307,), (0.3081,))
@@ -39,18 +37,18 @@ if __name__ == "__main__":
     writer = SummaryWriter("runs/" + str(currenttime))
 
     # Hyperparameters
-    batch_size = 100
+    batch_size = 64
     learning_rate_child = 0.01
     learning_rate_controller = 0.01
     momentum = 0.5
     l2_decay = 0
     param_per_layer = 4
-    num_of_layers = 2
+    num_of_layers = 4
     input_dim = (28, 28)
-    num_of_children = 5
-    epoch_controller = 10
+    num_of_children = 10
+    epoch_controller = 100
     epoch_child = 1
-    entropy_weight = 0.0001  # to encourage exploration
+    entropy_weight = 0.000  # to encourage exploration
     loginterval = 5
     input_channels = 1
     output_dim = 10
@@ -110,7 +108,5 @@ if __name__ == "__main__":
     #                     "output_dim": 10,
     #                     "controller_layers": 2},
     #                    {'hparam/accuracy': val_acc}))
-
-
 
     writer.close()
