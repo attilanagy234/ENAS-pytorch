@@ -8,7 +8,7 @@ from child import Child
 layer = namedtuple('layer', 'kernel_size stride pooling_size input_dim output_dim')
 
 
-class NetManager(object):
+class Trainer(object):
 
     def __init__(self, writer, log_interval, num_of_children, input_dim, output_dim, learning_rate_child,
                  param_per_layer,
