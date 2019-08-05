@@ -19,14 +19,19 @@ if __name__ == "__main__":
 
     # Hyperparameters
     batch_size = 64
+    batch_size_test = 1000
+    reduced_labels = [1, 5]
+
     learning_rate_child = 0.01
     learning_rate_controller = 0.01
     momentum = 0.5
     l2_decay = 0
+
     param_per_layer = 4
     num_of_layers = 4
     input_dim = (28, 28)
     num_of_children = 10
+
     epoch_controller = 100
     epoch_child = 1
     entropy_weight = 0.000  # to encourage exploration
@@ -37,7 +42,7 @@ if __name__ == "__main__":
     controller_layers = 2
 
     # Data
-    train_loader, test_loader = get_dataLoaders(batch_size, 1000)
+    train_loader, test_loader = get_dataLoaders(batch_size, 1000, reduced_labels)
 
     # Device
     use_cuda = False
@@ -70,6 +75,7 @@ if __name__ == "__main__":
                                        epoch_controller,
                                        momentum,
                                        entropy_weight)
+
 
     # writer.add_hparams(({"batch_size": 100,
     #                     "learning_rate_child": 0.01,
