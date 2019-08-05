@@ -2,6 +2,10 @@ import torch
 from torchvision import datasets, transforms
 
 
+#FIFO for baseline
+def push_to_tensor_alternative(tensor, x):
+    return torch.cat((tensor[1:], torch.Tensor([x])))
+
 def reduceLabels(data, labels):
     """inplace!"""
 

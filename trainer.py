@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from collections import namedtuple
 from controller import Controller
 from child import Child
+from utils import push_to_tensor_alternative
 
 layer = namedtuple('layer', 'kernel_size stride pooling_size input_dim output_dim')
 
@@ -31,6 +32,8 @@ class Trainer(object):
         self.children = list()
 
         self.globaliter = 0
+
+
 
     def make_config(self, raw_config):
 
@@ -66,6 +69,10 @@ class Trainer(object):
         model.train()
 
         step = 0
+
+        prev_runs = torch.zeros([5])  #to store the val_acc of prev epochs
+
+
         for epoch_idx in range(epoch):
             loss = torch.FloatTensor([0])
             epoch_valacc = torch.FloatTensor([0])
@@ -99,6 +106,10 @@ class Trainer(object):
 
                 # calculate advantage with baseline (moving avg)
 
+                baseline = prev_runs.mean()  #substract baseline to reduce variance in rewards
+                reward = reward - baseline
+                print(prev_runs, baseline, reward)
+
                 loss += -1 * sampled_logprobs * reward
                 epoch_valacc += validation_accuracy
 
@@ -126,7 +137,11 @@ class Trainer(object):
             self.writer.add_scalar("epoch_loss", loss.item(), global_step=epoch_idx)
             self.writer.add_scalar("epoch_loss", epoch_valacc, global_step=epoch_idx)
 
-        return epoch_valacc
+
+            push_to_tensor_alternative(prev_runs, epoch_valacc)
+
+
+        return prev_runs
 
     def train_child(self, child, device, train_loader, epochs, ):
 

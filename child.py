@@ -53,7 +53,7 @@ class Child(nn.Module):
     def _conv2d_output_shape(self, h_w, kernel_size, stride, pad=1, dilation=1):
         h = floor(((h_w[0] + (2 * pad) - (dilation * (kernel_size - 1)) - 1) / stride) + 1)
         w = floor(((h_w[1] + (2 * pad) - (dilation * (kernel_size - 1)) - 1) / stride) + 1)
-        print(h_w, h, w, kernel_size, stride, pad, dilation)
+        #print(h_w, h, w, kernel_size, stride, pad, dilation)
         return h, w
 
     def _pooling2d_output_shape(self, h_w, kernel_size, stride,
