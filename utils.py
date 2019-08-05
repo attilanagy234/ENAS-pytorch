@@ -13,7 +13,7 @@ def reduceLabels(data, labels):
     for label in labels[1:]:
         label_idx = data.targets == label
         idx += label_idx
-        print(label, label_idx, len(label_idx))
+        #print(label, label_idx, len(label_idx))
     data.targets = data.targets[idx]
     data.data = data.data[idx]
 

@@ -138,7 +138,7 @@ class Trainer(object):
             self.writer.add_scalar("epoch_loss", epoch_valacc, global_step=epoch_idx)
 
 
-            push_to_tensor_alternative(prev_runs, epoch_valacc)
+            prev_runs = push_to_tensor_alternative(prev_runs, epoch_valacc)
 
 
         return prev_runs

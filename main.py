@@ -18,28 +18,30 @@ if __name__ == "__main__":
     writer = SummaryWriter("runs/" + str(current_time))
 
     # Hyperparameters
+    log_interval = 5
+
     batch_size = 64
     batch_size_test = 1000
     reduced_labels = [1, 5]
+    input_dim = (28, 28)
+    output_dim = 10
+    input_channels = 1
 
     learning_rate_child = 0.01
     learning_rate_controller = 0.01
     momentum = 0.5
     l2_decay = 0
-
-    param_per_layer = 4
-    num_of_layers = 4
-    input_dim = (28, 28)
-    num_of_children = 10
+    entropy_weight = 0.000  # to encourage exploration
 
     epoch_controller = 100
     epoch_child = 1
-    entropy_weight = 0.000  # to encourage exploration
-    log_interval = 5
-    input_channels = 1
-    output_dim = 10
     controller_size = 5
     controller_layers = 2
+
+    param_per_layer = 4
+    num_of_layers = 4
+    num_of_children = 10
+    
 
     # Data
     train_loader, test_loader = get_dataLoaders(batch_size, 1000, reduced_labels)
