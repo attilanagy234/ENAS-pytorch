@@ -2,8 +2,10 @@ from typing import Dict, Union
 import torch
 import torch.nn.functional as F
 from collections import namedtuple
-from controller import Controller
-from child import Child
+# from controller import Controller
+from EnasController import EnasController
+# from child import Child
+from EnasChild import *
 from utils import push_to_tensor_alternative
 
 layer = namedtuple('layer', 'kernel_size stride pooling_size input_dim output_dim')
@@ -11,9 +13,17 @@ layer = namedtuple('layer', 'kernel_size stride pooling_size input_dim output_di
 
 class Trainer(object):
 
-    def __init__(self, writer, log_interval, num_of_children, input_dim, output_dim, learning_rate_child,
-                 param_per_layer,
-                 num_of_layers, out_filters, controller_size, controller_layers):
+    def __init__(self, writer,
+                 log_interval,
+                 num_of_children,
+                 input_dim,
+                 output_dim,
+                 learning_rate_child,
+                 num_branches,
+                 num_of_layers,
+                 out_filters,
+                 controller_size,
+                 controller_layers):
 
         self.writer = writer
         self.log_interval = log_interval
@@ -21,21 +31,27 @@ class Trainer(object):
 
         self.input_dim = input_dim
         self.output_dim = output_dim
+        self.out_filters = out_filters
 
-        self.param_per_layer = param_per_layer
-        self.num_of_layers = num_of_layers
+        self.num_branches = num_branches
+        self.num_layers = num_of_layers
 
         self.learning_rate_child = learning_rate_child
 
-        self.controller = Controller(writer, num_of_layers, param_per_layer, controller_size,
-                                     controller_layers)  # self,num_layers=2,num_branches=4,lstm_size=5,lstm_num_layers=2,tanh_constant=1.5,temperature=None
+        self.controller = EnasController(self.writer,
+                                         self.num_layers,
+                                         self.num_branches,
+                                         controller_size,
+                                         controller_layers)  # self,num_layers=2,num_branches=4,lstm_size=5,lstm_num_layers=2,tanh_constant=1.5,temperature=None
         self.children = list()
 
         self.globaliter = 0
 
 
-
+## unused
     def make_config(self, raw_config):
+
+        raise Exception("make_config: dont use this")
 
         config = dict()
 
@@ -56,9 +72,22 @@ class Trainer(object):
 
         return config
 
+    def make_enas_config(self, raw_config):
+
+        config = dict()
+        list_config = list(map(int, raw_config))
+
+        for layer_i in range(0, self.num_layers):
+
+            config["layer_" + str(layer_i)] = list_config[layer_i]
+
+        return config
+
+# unused
     def sample_child(self):
         return self.controller.sample()
 
+# unused
     def sample_children(self):
         for i in range(self.num_of_children):
             self.children.append(self.controller.sample())
@@ -89,9 +118,9 @@ class Trainer(object):
 
                 # get the acc of a single child
                 print(sampled_architecture)
-                conf = self.make_config(sampled_architecture)
+                conf = self.make_enas_config(sampled_architecture)
                 print(conf)
-                child = Child(conf, self.learning_rate_child, momentum, 10, (28, 28)).to(device)
+                child = EnasChild(conf,self.num_layers, self.learning_rate_child, momentum, out_filters=self.out_filters, input_shape=self.input_dim).to(device)
                 print("train_controller, epoch/child : ", epoch_idx, child_idx, " child : ", child)
                 self.train_child(child, device, train_loader, 1)
                 validation_accuracy = self.test_child(child, device, valid_loader)
@@ -155,7 +184,7 @@ class Trainer(object):
                 loss.backward()
                 child.optimizer.step()
 
-                if batch_idx % 100 == 0:
+                if batch_idx % self.log_interval == 0:
                     print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                         epoch_idx, batch_idx * len(images), len(train_loader.dataset),
                                    100. * batch_idx / len(train_loader), loss.item()))

@@ -3,8 +3,8 @@ import torch
 import numpy as np
 from tensorboardX import SummaryWriter
 import datetime
-from trainer import Trainer
-from utils import get_dataLoaders
+from trainer import *
+from utils import *
 # Install latest Tensorflow build
 from tensorflow import summary
 
@@ -18,13 +18,14 @@ if __name__ == "__main__":
     writer = SummaryWriter("runs/" + str(current_time))
 
     # Hyperparameters
-    log_interval = 5
+    log_interval = 2
 
     batch_size = 64
     batch_size_test = 1000
     reduced_labels = [1, 5]
     input_dim = (28, 28)
     output_dim = 10
+    out_filters = 10
     input_channels = 1
 
     learning_rate_child = 0.01
@@ -38,8 +39,8 @@ if __name__ == "__main__":
     controller_size = 5
     controller_layers = 2
 
-    param_per_layer = 4
-    num_of_layers = 4
+    num_of_branches = 6
+    num_of_layers = 2
     num_of_children = 10
     
 
@@ -57,9 +58,9 @@ if __name__ == "__main__":
                       input_channels,
                       output_dim,
                       learning_rate_child,
-                      param_per_layer,
+                      num_of_branches,
                       num_of_layers,
-                      10,  # =out_filters, not used
+                      out_filters,
                       controller_size,
                       controller_layers
                       )
