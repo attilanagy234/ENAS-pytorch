@@ -20,13 +20,6 @@ if __name__ == "__main__":
     # Hyperparameters
     log_interval = 2
 
-    batch_size = 64
-    batch_size_test = 1000
-    reduced_labels = [1, 5]
-    input_dim = (28, 28)
-    output_dim = 10
-    out_filters = 10
-    input_channels = 1
 
     learning_rate_child = 0.01
     learning_rate_controller = 0.01
@@ -42,7 +35,14 @@ if __name__ == "__main__":
     num_of_branches = 6
     num_of_layers = 2
     num_of_children = 10
-    
+
+    batch_size = 64
+    batch_size_test = 1000
+    reduced_labels = [1, 5]
+    input_dim = (28, 28)
+    num_classes = len(reduced_labels)
+    out_filters = 10
+    input_channels = 1
 
     # Data
     train_loader, test_loader = get_dataLoaders(batch_size, 1000, reduced_labels)
@@ -56,7 +56,7 @@ if __name__ == "__main__":
                       log_interval,
                       num_of_children,
                       input_channels,
-                      output_dim,
+                      num_classes,
                       learning_rate_child,
                       num_of_branches,
                       num_of_layers,
