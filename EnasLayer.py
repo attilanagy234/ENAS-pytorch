@@ -131,25 +131,25 @@ class PoolBranch(nn.Module):
 
 class FixedEnasLayer(nn.Module):
 
-    def __init__(self, in_filters, out_filters, layer_id, prev_layers, layer_type):
+    def __init__(self, in_filters, out_filters, layer_id, prev_layers, branch_id):
         super(FixedEnasLayer, self).__init__()
         self.in_filers = in_filters
         self.out_filters = out_filters
         self.layer_id = layer_id
         self.prev_layers = prev_layers
-        self.layer_type = layer_type
+        self.layer_type = branch_id
 
-        if layer_type == 0:
+        if branch_id == 0:
             self.layer = ConvBranch(self.in_filers, self.out_filters, 3, False)
-        elif layer_type == 1:
+        elif branch_id == 1:
             self.layer = ConvBranch(self.in_filers, self.out_filters, 5, False)
-        elif layer_type == 2:
+        elif branch_id == 2:
             self.layer = ConvBranch(self.in_filers, self.out_filters, 3, True)
-        elif layer_type == 3:
+        elif branch_id == 3:
             self.layer = ConvBranch(self.in_filers, self.out_filters, 5, True)
-        elif layer_type == 4:
+        elif branch_id == 4:
             self.layer = PoolBranch(self.in_filers, self.out_filters, 3, "max")
-        elif layer_type == 5:
+        elif branch_id == 5:
             self.layer = PoolBranch(self.in_filers, self.out_filters, 3, "avg")
         else:
             raise AssertionError("layer_type must be in [0,5]")
@@ -168,7 +168,20 @@ class SharedEnasLayer(nn.Module):
         self.prev_layers = prev_layers
         self.layer_type = layer_type
 
-        raise NotImplemented(f"SharedEnasLayer:init")
+        self.branch1 = ConvBranch(self.in_filers, self.out_filters, 3, False)
+        self.branch2 = ConvBranch(self.in_filers, self.out_filters, 5, False)
+        self.branch3 = ConvBranch(self.in_filers, self.out_filters, 3, True)
+        self.branch4 = ConvBranch(self.in_filers, self.out_filters, 5, True)
+        self.branch5 = PoolBranch(self.in_filers, self.out_filters, 3, "max")
+        self.branch6 = PoolBranch(self.in_filers, self.out_filters, 3, "avg")
 
-    def forward(self, x):
-        raise NotImplemented(f"SharedEnasLayer:forward")
+        self.branches = nn.ModuleList([self.branch1, self.branch2, self.branch3, self.branch4, self.branch5, self.branch6])
+
+    def forward(self, x, branch_id):
+
+        assert branch_id not in range(1, 7), ("branch_id not in range(1,7), ", branch_id)
+
+        out = self.branches[branch_id-1](x)
+
+        return out
+

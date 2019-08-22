@@ -29,7 +29,7 @@ class EnasChild(nn.Module):
         self.layerList.append(nn.BatchNorm2d(out_filters, track_running_stats=False))
 
         for layer_id, layer_param in self.config.items():
-            currentLayer = FixedEnasLayer(in_filters=out_filters, out_filters=out_filters, layer_type=layer_param, layer_id=layer_id, prev_layers="unused")
+            currentLayer = FixedEnasLayer(in_filters=out_filters, out_filters=out_filters, branch_id=layer_param, layer_id=layer_id, prev_layers="unused")
             self.layerList.append(currentLayer)
             last_kernel = currentLayer.layer.kernel
 
@@ -58,4 +58,6 @@ class EnasChild(nn.Module):
         x = x.view(x.shape[0], -1)
         x = self.fc1(x)
 
-        return F.log_softmax(x, dim=1)
+        out = F.log_softmax(x, dim=1)
+
+        return out

@@ -13,11 +13,12 @@ layer = namedtuple('layer', 'kernel_size stride pooling_size input_dim output_di
 
 class Trainer(object):
 
-    def __init__(self, writer,
+    def __init__(self,
+                 writer,
                  log_interval,
                  num_of_children,
                  input_dim,
-                 output_dim,
+                 num_classes,
                  learning_rate_child,
                  num_branches,
                  num_of_layers,
@@ -30,7 +31,7 @@ class Trainer(object):
         self.num_of_children = num_of_children
 
         self.input_dim = input_dim
-        self.output_dim = output_dim
+        self.num_classes = num_classes
         self.out_filters = out_filters
 
         self.num_branches = num_branches
@@ -120,7 +121,7 @@ class Trainer(object):
                 print(sampled_architecture)
                 conf = self.make_enas_config(sampled_architecture)
                 print(conf)
-                child = EnasChild(conf,self.num_layers, self.learning_rate_child, momentum, out_filters=self.out_filters, input_shape=self.input_dim).to(device)
+                child = EnasChild(conf,self.num_layers, self.learning_rate_child, momentum,num_classes=self.num_classes, out_filters=self.out_filters, input_shape=self.input_dim).to(device)
                 print("train_controller, epoch/child : ", epoch_idx, child_idx, " child : ", child)
                 self.train_child(child, device, train_loader, 1)
                 validation_accuracy = self.test_child(child, device, valid_loader)
