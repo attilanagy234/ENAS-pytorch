@@ -118,12 +118,12 @@ class Trainer(object):
                 sampled_logprobs = model.sampled_logprobs
 
                 # get the acc of a single child
-                print(sampled_architecture)
+                #print(sampled_architecture)
                 conf = self.make_enas_config(sampled_architecture)
                 print(conf)
                 child = EnasChild(conf,self.num_layers, self.learning_rate_child, momentum,num_classes=self.num_classes, out_filters=self.out_filters, input_shape=self.input_dim).to(device)
-                print("train_controller, epoch/child : ", epoch_idx, child_idx, " child : ", child)
-                self.train_child(child, device, train_loader, 1)
+                #print("train_controller, epoch/child : ", epoch_idx, child_idx, " child : ", child)
+                self.train_child(child, device, train_loader, 1, epoch_idx, child_idx)
                 validation_accuracy = self.test_child(child, device, valid_loader)
 
                 # with torch.no_grad():
@@ -173,7 +173,7 @@ class Trainer(object):
 
         return prev_runs
 
-    def train_child(self, child, device, train_loader, epochs, ):
+    def train_child(self, child, device, train_loader, epochs, c_epoch_idx, child_idx ):
 
         child.train()
         for epoch_idx in range(epochs):
@@ -186,8 +186,9 @@ class Trainer(object):
                 child.optimizer.step()
 
                 if batch_idx % self.log_interval == 0:
-                    print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                        epoch_idx, batch_idx * len(images), len(train_loader.dataset),
+                    print('Train Epoch: {}{}{} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+                        c_epoch_idx, child_idx, epoch_idx
+                        , batch_idx * len(images), len(train_loader.dataset),
                                    100. * batch_idx / len(train_loader), loss.item()))
 
     def test_child(self, child, device, valid_loader):

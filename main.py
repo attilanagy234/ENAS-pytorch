@@ -5,8 +5,10 @@ from tensorboardX import SummaryWriter
 import datetime
 from trainer import *
 from utils import *
+from pathlib import Path
+
 # Install latest Tensorflow build
-from tensorflow import summary
+# from tensorflow import summary
 
 
 if __name__ == "__main__":
@@ -15,7 +17,9 @@ if __name__ == "__main__":
     np.random.seed(360)
 
     current_time = datetime.datetime.now()
-    writer = SummaryWriter("runs/" + str(current_time))
+    logdir = Path('../runs/') / str(current_time).replace(" ", "_").replace('.', '')
+
+    writer = SummaryWriter('runs')
 
     # Hyperparameters
     log_interval = 2
