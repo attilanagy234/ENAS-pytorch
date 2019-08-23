@@ -69,7 +69,7 @@ class Trainer(object):
             prev_dim = out_channels
 
             current = layer(kernel_size, stride, pooling_size, input_dim, out_channels)
-            config["layer_" + str(layer_i)] = current
+            config[str(layer_i)] = current
 
         return config
 
@@ -80,7 +80,7 @@ class Trainer(object):
 
         for layer_i in range(0, self.num_layers):
 
-            config["layer_" + str(layer_i)] = list_config[layer_i]
+            config[str(layer_i)] = list_config[layer_i]
 
         return config
 
@@ -122,7 +122,7 @@ class Trainer(object):
                 conf = self.make_enas_config(sampled_architecture)
                 print(conf)
                 child = EnasChild(conf,self.num_layers, self.learning_rate_child, momentum,num_classes=self.num_classes, out_filters=self.out_filters, input_shape=self.input_dim).to(device)
-                #print("train_controller, epoch/child : ", epoch_idx, child_idx, " child : ", child)
+                print("train_controller, epoch/child : ", epoch_idx, child_idx, " child : ", child)
                 self.train_child(child, device, train_loader, 1, epoch_idx, child_idx)
                 validation_accuracy = self.test_child(child, device, valid_loader)
 
@@ -186,7 +186,7 @@ class Trainer(object):
                 child.optimizer.step()
 
                 if batch_idx % self.log_interval == 0:
-                    print('Train Epoch: {}{}{} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+                    print('Train Epoch: {}-{}-{} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                         c_epoch_idx, child_idx, epoch_idx
                         , batch_idx * len(images), len(train_loader.dataset),
                                    100. * batch_idx / len(train_loader), loss.item()))

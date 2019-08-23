@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 
 class FactorizedReduction(nn.Module):
-    def __init__(self, in_filters, out_filters, stride, is_training):
+    def __init__(self, in_filters, out_filters, stride=2):
         super(FactorizedReduction).__init__()
 
         assert out_filters % 2 == 0, ("FactorizedReduction: not even number of out_filters")
