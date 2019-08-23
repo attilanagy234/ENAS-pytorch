@@ -29,30 +29,38 @@ class EnasChild(nn.Module):
         self.layerList.append(nn.BatchNorm2d(out_filters, track_running_stats=False))
 
         for layer_id, layer_param in self.config.items():
-            currentLayer = FixedEnasLayer(in_filters=out_filters, out_filters=out_filters, branch_id=layer_param, layer_id=layer_id, prev_layers="unused")
+            if not fixed_arc:
+                currentLayer = SharedEnasLayer(in_filters=out_filters, out_filters=out_filters, layer_id=layer_id, prev_layers="unused")
+
+            else:
+                currentLayer = FixedEnasLayer(in_filters=out_filters, out_filters=out_filters, branch_id=layer_param, layer_id=layer_id, prev_layers="unused")
+
             self.layerList.append(currentLayer)
             last_kernel = currentLayer.layer.kernel
 
-            if len(self.layerList) in self.pool_layers:
-                if fixed_arc:
-                    #add factorized reduction
-                    #double the number of outfilters
-                    self.pool_layers.append()
+            if int(layer_id) in self.pool_layers:
                 if not fixed_arc:
-                    #add factorizedReduction
-                    #why no doubleout_filter?
-                    raise NotImplementedError("enasChild: fixed_arc==false")
+                    reductionLayer = FactorizedReduction(out_filters, out_filters, 2)
+                    self.pool_layers.append(reductionLayer)
 
-        self.net = nn.Sequential(*self.layerList)
+
+                else:
+                    reductionLayer = FactorizedReduction(out_filters, out_filters*2, 2)
+                    self.out_filters*=2
+                    self.layerList.append(reductionLayer)
+
+
         self.global_avg_pool = nn.AdaptiveAvgPool2d((1, 1))
         self.dropout = nn.Dropout(p=1. - self.keep_prob)
         self.fc1 = nn.Linear(in_features=out_filters, out_features=num_classes)
 
-        self.optimizer = torch.optim.SGD(self.net.parameters(), lr=lr, momentum=momentum)
+        self.optimizer = torch.optim.SGD(self.parameters(), lr=lr, momentum=momentum)
 
     def forward(self, x):
 
-        x = self.net(x)
+        for layer in self.layerList:
+            x = layer(x)
+
         x = self.global_avg_pool(x)
         x = self.dropout(x)
         x = x.view(x.shape[0], -1)
