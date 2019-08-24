@@ -62,11 +62,13 @@ if __name__ == "__main__":
                       input_channels,
                       num_classes,
                       learning_rate_child,
+                      momentum,
                       num_of_branches,
                       num_of_layers,
                       out_filters,
                       controller_size,
-                      controller_layers
+                      controller_layers,
+                      isShared=True
                       )
 
     controller_optimizer = torch.optim.Adam(params=trainer.controller.parameters(),

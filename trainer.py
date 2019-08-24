@@ -20,11 +20,13 @@ class Trainer(object):
                  input_dim,
                  num_classes,
                  learning_rate_child,
+                 momentum_child,
                  num_branches,
                  num_of_layers,
                  out_filters,
                  controller_size,
-                 controller_layers):
+                 controller_layers,
+                 isShared):
 
         self.writer = writer
         self.log_interval = log_interval
@@ -34,10 +36,13 @@ class Trainer(object):
         self.num_classes = num_classes
         self.out_filters = out_filters
 
+        self.isShared = isShared
+
         self.num_branches = num_branches
         self.num_layers = num_of_layers
 
         self.learning_rate_child = learning_rate_child
+        self.momentum = momentum_child
 
         self.controller = EnasController(self.writer,
                                          self.num_layers,
@@ -47,6 +52,9 @@ class Trainer(object):
         self.children = list()
 
         self.globaliter = 0
+
+        if self.isShared:
+            self.child = SharedEnasChild(self.num_layers, self.learning_rate_child, self.momentum, num_classes=self.num_classes, out_filters=self.out_filters, input_shape=self.input_dim)
 
 
 ## unused
@@ -121,10 +129,13 @@ class Trainer(object):
                 #print(sampled_architecture)
                 conf = self.make_enas_config(sampled_architecture)
                 print(conf)
-                child = EnasChild(conf,self.num_layers, self.learning_rate_child, momentum,num_classes=self.num_classes, out_filters=self.out_filters, input_shape=self.input_dim).to(device)
+                if self.isShared:
+                    child = self.child
+                else:
+                    child = EnasChild(conf, self.num_layers, self.learning_rate_child, momentum,num_classes=self.num_classes, out_filters=self.out_filters, input_shape=self.input_dim).to(device)
                 print("train_controller, epoch/child : ", epoch_idx, child_idx, " child : ", child)
-                self.train_child(child, device, train_loader, 1, epoch_idx, child_idx)
-                validation_accuracy = self.test_child(child, device, valid_loader)
+                self.train_child(child, conf, device, train_loader, 1, epoch_idx, child_idx)
+                validation_accuracy = self.test_child(child, conf, device, valid_loader)
 
                 # with torch.no_grad():
                 #    prediction = builder(sampled_architecture)(images)
@@ -173,14 +184,14 @@ class Trainer(object):
 
         return prev_runs
 
-    def train_child(self, child, device, train_loader, epochs, c_epoch_idx, child_idx ):
+    def train_child(self, child, config, device, train_loader, epochs, c_epoch_idx, child_idx):
 
         child.train()
         for epoch_idx in range(epochs):
             for batch_idx, (images, labels) in enumerate(train_loader):
                 images, labels = images.to(device), labels.to(device)
                 child.optimizer.zero_grad()
-                prediction = child(images)
+                prediction = child(images, config)
                 loss = F.nll_loss(prediction, labels)
                 loss.backward()
                 child.optimizer.step()
@@ -191,7 +202,7 @@ class Trainer(object):
                         , batch_idx * len(images), len(train_loader.dataset),
                                    100. * batch_idx / len(train_loader), loss.item()))
 
-    def test_child(self, child, device, valid_loader):
+    def test_child(self, child, config, device, valid_loader):
 
         child.eval()
         validation_loss = 0
@@ -201,7 +212,7 @@ class Trainer(object):
         with torch.no_grad():
             for images, labels in valid_loader:
                 images, labels = images.to(device), labels.to(device)
-                prediction_probs = child(images)
+                prediction_probs = child(images, config)
                 validation_loss += F.nll_loss(prediction_probs, labels, reduction="sum").item()  # batch loss
                 prediction = prediction_probs.argmax(dim=1, keepdim=True)  # index of max logprob
                 correct += prediction.eq(labels.view_as(prediction)).sum().item()
