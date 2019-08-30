@@ -21,6 +21,8 @@ if __name__ == "__main__":
 
     writer = SummaryWriter('runs')
 
+    #command: tensorboard --logdir=runs
+
     # Hyperparameters
     log_interval = 2
 
@@ -38,11 +40,11 @@ if __name__ == "__main__":
 
     num_of_branches = 6
     num_of_layers = 2
-    num_of_children = 10
+    num_of_children = 15
 
     batch_size = 64
     batch_size_test = 1000
-    reduced_labels = [0, 1] # other labels needs to be transformed if u skip a label
+    reduced_labels = [0, 1, 2, 3] # other labels needs to be transformed if u skip a label
     input_dim = (28, 28)
     num_classes = len(reduced_labels)
     out_filters = 10
