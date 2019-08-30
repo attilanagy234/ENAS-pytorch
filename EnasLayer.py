@@ -160,13 +160,12 @@ class FixedEnasLayer(nn.Module):
 
 class SharedEnasLayer(nn.Module):
 
-    def __init__(self, in_filters, out_filters, layer_id, prev_layers, layer_type):
+    def __init__(self, in_filters, out_filters, layer_id, prev_layers):
         super(SharedEnasLayer, self).__init__()
         self.in_filers = in_filters
         self.out_filters = out_filters
         self.layer_id = layer_id
         self.prev_layers = prev_layers
-        self.layer_type = layer_type
 
         self.branch1 = ConvBranch(self.in_filers, self.out_filters, 3, False)
         self.branch2 = ConvBranch(self.in_filers, self.out_filters, 5, False)
@@ -179,7 +178,7 @@ class SharedEnasLayer(nn.Module):
 
     def forward(self, x, branch_id):
 
-        assert branch_id not in range(1, 7), ("branch_id not in range(1,7), ", branch_id)
+        assert branch_id in range(1, 7), ("branch_id not in range(1,7), ", branch_id)
 
         out = self.branches[branch_id-1](x)
 
