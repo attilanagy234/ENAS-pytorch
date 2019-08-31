@@ -1,10 +1,14 @@
+import logging
+import sys
+
 import torch
 from torchvision import datasets, transforms
 
 
-#FIFO for baseline
+# FIFO for baseline
 def push_to_tensor_alternative(tensor, x):
     return torch.cat((tensor[1:], torch.Tensor([x])))
+
 
 def reduceLabels(data, labels):
     """inplace!"""
@@ -13,13 +17,12 @@ def reduceLabels(data, labels):
     for label in labels[1:]:
         label_idx = data.targets == label
         idx += label_idx
-        #print(label, label_idx, len(label_idx))
+        # print(label, label_idx, len(label_idx))
     data.targets = data.targets[idx]
     data.data = data.data[idx]
 
 
-def get_dataLoaders(train_bs, test_bs, labels):
-
+def get_data_loaders(train_bs, test_bs, labels):
     data = datasets.MNIST('../data', train=True, download=True,
                           transform=transforms.Compose([
                               transforms.ToTensor(),
@@ -41,3 +44,11 @@ def get_dataLoaders(train_bs, test_bs, labels):
 
     return train_loader, test_loader
 
+
+def get_logger(name=__file__, level=logging.INFO):
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)-9s %(message)s'))
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    logger.addHandler(handler)
+    return logger
