@@ -1,4 +1,3 @@
-
 import torch
 import numpy as np
 from tensorboardX import SummaryWriter
@@ -21,11 +20,10 @@ if __name__ == "__main__":
 
     writer = SummaryWriter('runs')
 
-    #command: tensorboard --logdir=runs
+    # command: tensorboard --logdir=runs
 
     # Hyperparameters
     log_interval = 2
-
 
     learning_rate_child = 0.01
     learning_rate_controller = 0.01
@@ -44,14 +42,14 @@ if __name__ == "__main__":
 
     batch_size = 64
     batch_size_test = 1000
-    reduced_labels = [0, 1, 2, 3] # other labels needs to be transformed if u skip a label
+    reduced_labels = [0, 1, 2, 3]  # other labels needs to be transformed if u skip a label
     input_dim = (28, 28)
     num_classes = len(reduced_labels)
     out_filters = 10
     input_channels = 1
 
     # Data
-    train_loader, test_loader = get_dataLoaders(batch_size, 1000, reduced_labels)
+    train_loader, test_loader = get_data_loaders(batch_size, 1000, reduced_labels)
 
     # Device
     use_cuda = False
@@ -86,7 +84,6 @@ if __name__ == "__main__":
                                        epoch_controller,
                                        momentum,
                                        entropy_weight)
-
 
     # writer.add_hparams(({"batch_size": 100,
     #                     "learning_rate_child": 0.01,

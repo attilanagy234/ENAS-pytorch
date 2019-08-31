@@ -3,6 +3,7 @@ import torch.nn as nn
 from torch.autograd import Variable
 from torch.distributions.categorical import Categorical
 
+
 class Controller(nn.Module):
 
     def __init__(self, writer, num_layers=2, num_branches=4, lstm_size=5, lstm_num_layers=2, tanh_constant=1.5,
@@ -37,7 +38,7 @@ class Controller(nn.Module):
         self._reset_params()
 
     def _reset_params(self):
-        #print("reset params")
+        # print("reset params")
 
         for m in self.modules():
             if isinstance(m, nn.Linear) or isinstance(m, nn.Embedding):
@@ -83,7 +84,7 @@ class Controller(nn.Module):
                 inputs = inputs.unsqueeze(0)
 
                 self.writer.add_histogram("logits", logit)
-                #self.writer.add_histogram("out_dist.logprob", out_dist.log_prob())
+                # self.writer.add_histogram("out_dist.logprob", out_dist.log_prob())
 
         self.sampled_architecture = arc_seq
 

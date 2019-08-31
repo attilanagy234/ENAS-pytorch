@@ -12,7 +12,7 @@ class Child(nn.Module):
 
         modules = nn.ModuleList()
         height_width = input_shape
-        #print(input_shape)
+        # print(input_shape)
         last_out_dim = 0
         padding = 2
 
@@ -33,16 +33,16 @@ class Child(nn.Module):
 
             height_width = self._conv2d_output_shape(height_width, layer_param.kernel_size, layer_param.stride, padding,
                                                      1)
-            #print("conv2d", height_width)
+            # print("conv2d", height_width)
 
             height_width = self._pooling2d_output_shape(height_width, layer_param.pooling_size, 2, 1)
-            #print("pooling", height_width)
+            # print("pooling", height_width)
 
             last_out_dim = layer_param.output_dim
-            #print(last_out_dim)
+            # print(last_out_dim)
 
         convOut_dim = height_width[0] * height_width[0] * last_out_dim
-        #print(convOut_dim)
+        # print(convOut_dim)
 
         self.net = nn.Sequential(*modules)
         self.fc1 = nn.Linear(in_features=convOut_dim, out_features=50)
@@ -53,7 +53,7 @@ class Child(nn.Module):
     def _conv2d_output_shape(self, h_w, kernel_size, stride, pad=1, dilation=1):
         h = floor(((h_w[0] + (2 * pad) - (dilation * (kernel_size - 1)) - 1) / stride) + 1)
         w = floor(((h_w[1] + (2 * pad) - (dilation * (kernel_size - 1)) - 1) / stride) + 1)
-        #print(h_w, h, w, kernel_size, stride, pad, dilation)
+        # print(h_w, h, w, kernel_size, stride, pad, dilation)
         return h, w
 
     def _pooling2d_output_shape(self, h_w, kernel_size, stride,

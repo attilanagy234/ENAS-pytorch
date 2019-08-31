@@ -6,7 +6,7 @@ from collections import namedtuple
 from EnasController import EnasController
 # from child import Child
 from EnasChild import *
-from utils import push_to_tensor_alternative
+from utils import push_to_tensor_alternative, get_logger
 
 layer = namedtuple('layer', 'kernel_size stride pooling_size input_dim output_dim')
 
@@ -52,12 +52,14 @@ class Trainer(object):
         self.children = list()
 
         self.globaliter = 0
+        self.logger = get_logger()
 
         if self.isShared:
-            self.child = SharedEnasChild(self.num_layers, self.learning_rate_child, self.momentum, num_classes=self.num_classes, out_filters=self.out_filters, input_shape=self.input_dim)
+            self.child = SharedEnasChild(self.num_layers, self.learning_rate_child, self.momentum,
+                                         num_classes=self.num_classes, out_filters=self.out_filters,
+                                         input_shape=self.input_dim)
 
-
-## unused
+    ## unused
     def make_config(self, raw_config):
 
         raise Exception("make_config: dont use this")
@@ -87,16 +89,15 @@ class Trainer(object):
         list_config = list(map(int, raw_config))
 
         for layer_i in range(0, self.num_layers):
-
             config[str(layer_i)] = list_config[layer_i]
 
         return config
 
-# unused
+    # unused
     def sample_child(self):
         return self.controller.sample()
 
-# unused
+    # unused
     def sample_children(self):
         for i in range(self.num_of_children):
             self.children.append(self.controller.sample())
@@ -108,8 +109,7 @@ class Trainer(object):
 
         step = 0
 
-        prev_runs = torch.zeros([5])  #to store the val_acc of prev epochs
-
+        prev_runs = torch.zeros([5])  # to store the val_acc of prev epochs
 
         for epoch_idx in range(epoch):
             loss = torch.FloatTensor([0])
@@ -126,14 +126,16 @@ class Trainer(object):
                 sampled_logprobs = model.sampled_logprobs
 
                 # get the acc of a single child
-                #print(sampled_architecture)
+                # (sampled_architecture)
                 conf = self.make_enas_config(sampled_architecture)
-                print(conf)
+                self.logger.info(conf)
                 if self.isShared:
                     child = self.child
                 else:
-                    child = EnasChild(conf, self.num_layers, self.learning_rate_child, momentum,num_classes=self.num_classes, out_filters=self.out_filters, input_shape=self.input_dim).to(device)
-                print("train_controller, epoch/child : ", epoch_idx, child_idx, " child : ", child)
+                    child = EnasChild(conf, self.num_layers, self.learning_rate_child, momentum,
+                                      num_classes=self.num_classes, out_filters=self.out_filters,
+                                      input_shape=self.input_dim).to(device)
+                self.logger.info("train_controller, epoch/child : ", epoch_idx, child_idx, " child : ", child)
                 self.train_child(child, conf, device, train_loader, 1, epoch_idx, child_idx)
                 validation_accuracy = self.test_child(child, conf, device, valid_loader)
 
@@ -147,9 +149,9 @@ class Trainer(object):
 
                 # calculate advantage with baseline (moving avg)
 
-                baseline = prev_runs.mean()  #substract baseline to reduce variance in rewards
+                baseline = prev_runs.mean()  # substract baseline to reduce variance in rewards
                 reward = reward - baseline
-                print(prev_runs, baseline, reward)
+                self.logger.info(prev_runs, baseline, reward)
 
                 loss += -1 * sampled_logprobs * reward
                 epoch_valacc += validation_accuracy
@@ -159,7 +161,7 @@ class Trainer(object):
                 self.writer.add_scalar("reward", reward, global_step=step)
                 self.writer.add_scalar("valid_acc", validation_accuracy, global_step=step)
 
-            print("step:", step)
+            self.logger.info("step:", step)
 
             self.writer.add_scalar("entropy_weight", entropy_weight, global_step=epoch_idx)
             self.writer.add_histogram("sampled_arcs", model.sampled_architecture, global_step=epoch_idx)
@@ -178,9 +180,7 @@ class Trainer(object):
             self.writer.add_scalar("epoch_loss", loss.item(), global_step=epoch_idx)
             self.writer.add_scalar("epoch_loss", epoch_valacc, global_step=epoch_idx)
 
-
             prev_runs = push_to_tensor_alternative(prev_runs, epoch_valacc)
-
 
         return prev_runs
 
@@ -197,10 +197,10 @@ class Trainer(object):
                 child.optimizer.step()
 
                 if batch_idx % self.log_interval == 0:
-                    print('Train Epoch: {}-{}-{} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+                    self.logger.info('Train Epoch: {}-{}-{} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                         c_epoch_idx, child_idx, epoch_idx
                         , batch_idx * len(images), len(train_loader.dataset),
-                                   100. * batch_idx / len(train_loader), loss.item()))
+                          100. * batch_idx / len(train_loader), loss.item()))
 
     def test_child(self, child, config, device, valid_loader):
 
@@ -220,7 +220,7 @@ class Trainer(object):
 
         validation_loss /= len(valid_loader.dataset)
 
-        print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+        self.logger.info('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
             validation_loss, correct, len(valid_loader.dataset),
             100. * correct / len(valid_loader.dataset)))
 
