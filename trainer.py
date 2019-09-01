@@ -171,6 +171,27 @@ class Trainer(object):
             loss /= self.num_of_children
             epoch_valacc /= self.num_of_children
 
+            #TODO: PPO
+            #TODO: needs MEMORY for storing epoch data, needs old policy network
+            # SAMPLE CODE:
+            # #Optimize policy for K epochs:
+            # for _ in range(self.K_epochs):
+            #     # Evaluating old actions and values :
+            #     logprobs, state_values, dist_entropy = self.policy.evaluate(old_states, old_actions)
+            #     # Finding the ratio (pi_theta / pi_theta__old):
+            #     ratios = torch.exp(logprobs - old_logprobs.detach())
+            #     # Finding Surrogate Loss:
+            #     advantages = rewards - state_values.detach()
+            #     surr1 = ratios * advantages
+            #     surr2 = torch.clamp(ratios, 1 - self.eps_clip, 1 + self.eps_clip) * advantages
+            #     loss = -torch.min(surr1, surr2) + 0.5 * self.MseLoss(state_values, rewards) - 0.01 * dist_entropy
+            #     # take gradient step
+            #     self.optimizer.zero_grad()
+            #     loss.mean().backward()
+            #     self.optimizer.step()
+            # # Copy new weights into old policy:
+            # self.policy_old.load_state_dict(self.policy.state_dict())
+
             # trainig:
             loss.backward(retain_graph=True)  # retrain_graph: keep the gradients, idk if we need this but tdvries does
             # to normalize gradients : grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), gradBound) #normalize gradient

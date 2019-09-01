@@ -110,17 +110,21 @@ class SharedEnasChild(nn.Module):
 
     def forward(self, x, config):
 
-        for layer in self.layerList:
-            if isinstance(layer, SharedEnasLayer):
-                x = layer(x, 1)
+
+        #TODO: more layer_idx than items in config
+
+        assert len(self.layerList)==len(config) "number of layer not equal to layers in config"
+
+        for layer_idx in range(len(self.layerList)):
+            if isinstance(self.layerList[layer_idx], SharedEnasLayer):
+                x = self.layerList[layer_idx](x, config[str(layer_idx)])
             else:
-                x = layer(x)
+                x = self.layerList[layer_idx](x)
 
         x = self.global_avg_pool(x)
         x = self.dropout(x)
         x = x.view(x.shape[0], -1)
         x = self.fc1(x)
-
         out = F.log_softmax(x, dim=1)
 
         return out

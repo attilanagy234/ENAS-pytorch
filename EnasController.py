@@ -30,6 +30,11 @@ class EnasController(nn.Module):
 
         self.w_soft = nn.Linear(self.lstm_size, self.num_branches, bias=False)  # 2=choice for every parameter
 
+        #for skipconnections:
+        self.attn_1 = nn.Linear(self.lstm_size, self.lstm_size, bias=False)
+        self.attn_2 = nn.Linear(self.lstm_size, self.lstm_size, bias=False)
+        self.w_attn = nn.Linear(self.lstm_size, 1, bias=False)
+
         self.sampled_architecture = []
         self.sampled_entropies = []
         self.sampled_logprobs = []
@@ -48,9 +53,19 @@ class EnasController(nn.Module):
 
     def forward(self):
         h0 = None  # t0 hidden will be nullvec
-        arc_seq = []
-        entropies = []
-        log_probs = []
+
+        arc_seq = dict()
+
+        branch_entropies = []
+        branch_log_probs = []
+
+        anchors = []
+        anchors_w1 = []
+
+        skip_counts = []
+        skip_penalties = []
+        skip_log_probs = []
+        skip_entropies = []
 
         inputs = self.g_emb.weight
 
@@ -64,33 +79,78 @@ class EnasController(nn.Module):
 #
             if self.temperature is not None:
                 logit /= self.temperature
-            if self.tanh_constant is not None:
-                logit = self.tanh_constant * torch.tanh(logit)
-#
+
             out_dist = Categorical(logits=logit)
             out_id = out_dist.sample()
-            arc_seq.append(out_id.item())
+
+            arc_seq[str(layer_id)] = [(out_id.item())] #TODO: rewrite trainer:make_config
 
             log_prob = out_dist.log_prob(out_id)
-            log_probs.append(log_prob.view(-1))
+            branch_log_probs.append(log_prob.view(-1))
 
             entropy = out_dist.entropy()
-            entropies.append(entropy.view(-1))
+            branch_entropies.append(entropy.view(-1))
 
             inputs = self.w_emb(out_id)
             inputs = inputs.unsqueeze(0)
 
             self.writer.add_histogram("logits", logit)
-            #self.writer.add_histogram("out_dist.logprob", out_dist.log_prob())
+            # self.writer.add_histogram("out_dist.logprob", out_dist.log_prob())
+
+            output, hn = self.w_lstm(inputs, h0)
+            output = output.squeeze(0)
+
+            if layer_id > 0:
+
+                # propagate the lstm output through the linear layers
+                query = torch.cat(anchors_w1, dim=0)
+                query = torch.tanh(query+self.attn_2(output))
+                query = self.attn_1(query)
+                logits = torch.cat([query, -query], dim=1)
+
+                # temperature + tanh_constant
+
+                # sample skipconnections from the output
+                skip_distribution = Categorical(logit=logits)
+                skip_connections = skip_distribution.sample().view(layer_id)
+                arc_seq[str(layer_id)].append(skip_connections)
+
+                # get the kl_divergence from skip_target
+                skip_prob = torch.sigmoid(logits)
+                kl_div = skip_prob * torch.log(skip_prob / self.skip_target)
+                kl_div = torch.sum(kl_div)
+                skip_penalties.append(kl_div)
+
+                # get the log probability
+                skip_log_prob = skip_distribution.log_prob(skip_connections)
+                skip_log_prob = torch.sum(skip_log_prob)
+                skip_log_probs.append(skip_log_prob)
+
+                # get entropy
+                skip_entropy = skip_distribution.entropy()
+                skip_entropy = torch.sum(skip_entropy)
+                skip_entropies.append(skip_entropy)
+
+                # get the number of skipcounts
+                skip_count = torch.sum(skip_connections)
+                skip_counts.append(skip_count)
 
 
-            #TODO: ATTENTION FOR RESIDUAL CONNECTIONS
+                # calculate the next input of the lstm
+                inputs = torch.matmul(skip_connections, torch.cat(anchors, dim=0))
+                inputs /= (1.0 + skip_count)
+            else:
+                inputs = self.g_emb.weight
 
+            anchors.append(output)
+            anchors_w1.append(self.w_attn_1(output))
 
         self.sampled_architecture = arc_seq
 
-        entropies = torch.cat(entropies)
-        self.sampled_entropies = torch.sum(entropies)
+        branch_entropies = torch.cat(branch_entropies)
+        skip_entropies = torch.cat(skip_entropies)
+        self.sampled_entropies = torch.sum(torch.cat([branch_entropies, skip_entropies]))
 
-        log_probs = torch.cat(log_probs)
-        self.sampled_logprobs = torch.sum(log_probs)
+        branch_log_probs = torch.cat(branch_log_probs)
+        skip_log_probs = torch.cat(skip_log_probs)
+        self.sampled_logprobs = torch.sum(torch.cat([branch_log_probs, skip_log_probs]))
