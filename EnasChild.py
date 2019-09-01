@@ -70,6 +70,7 @@ class EnasChild(nn.Module):
 
         return out
 
+
 class SharedEnasChild(nn.Module):
 
     def __init__(self, num_layers, lr=0.01, keep_prob=0.2, momentum=0.5, num_classes=10,
@@ -113,7 +114,7 @@ class SharedEnasChild(nn.Module):
 
         #TODO: more layer_idx than items in config
 
-        assert len(self.layerList)==len(config) "number of layer not equal to layers in config"
+        assert len(self.layerList)==len(config) ("Number of layer not equal to layers in config")
 
         for layer_idx in range(len(self.layerList)):
             if isinstance(self.layerList[layer_idx], SharedEnasLayer):
