@@ -89,8 +89,10 @@ class SharedEnasChild(nn.Module):
         pool_distance = self.num_layers // 3
         self.pool_layers = [pool_distance - 1, 2 * pool_distance - 1]
 
-        self.layerList.append(nn.Conv2d(num_channels, self.out_filters, kernel_size=3, padding=1, bias=False))
-        self.layerList.append(nn.BatchNorm2d(out_filters, track_running_stats=False))
+        self.stemConv = nn.Sequential(
+            nn.Conv2d(num_channels, self.out_filters, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(out_filters, track_running_stats=False)
+        )
 
         for layer_id in range(self.num_layers):
 
@@ -113,12 +115,17 @@ class SharedEnasChild(nn.Module):
 
 
         #TODO: more layer_idx than items in config
+        #TODO: skip connections
 
-        assert len(self.layerList)==len(config) ("Number of layer not equal to layers in config")
+        x = self.stemConv(x)
+        current_branch = 0
 
         for layer_idx in range(len(self.layerList)):
+            branchid, connections = config[str(current_branch)]
+            current_branch+=1
+            
             if isinstance(self.layerList[layer_idx], SharedEnasLayer):
-                x = self.layerList[layer_idx](x, config[str(layer_idx)])
+                x = self.layerList[layer_idx](x, branchid)
             else:
                 x = self.layerList[layer_idx](x)
 

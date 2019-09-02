@@ -85,13 +85,7 @@ class Trainer(object):
 
     def make_enas_config(self, raw_config):
 
-        config = dict()
-        list_config = list(map(int, raw_config))
-
-        for layer_i in range(0, self.num_layers):
-            config[str(layer_i)] = list_config[layer_i]
-
-        return config
+        return raw_config
 
     # unused
     def sample_child(self):
