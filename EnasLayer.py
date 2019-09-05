@@ -186,7 +186,7 @@ class SharedEnasLayer(nn.Module):
         else:
             skip_connections = []
 
-        assert branch_id in range(1, 7), ("branch_id not in range(1,7), ", branch_id)
+        assert branch_id in range(0, 6), ("branch_id not in range(1,7), ", branch_id)
 
         out = self.branches[branch_id-1](x)
 

@@ -74,13 +74,13 @@ class EnasChild(nn.Module):
 class SharedEnasChild(nn.Module):
 
     def __init__(self, num_layers, lr=0.01, keep_prob=0.2, momentum=0.5, num_classes=10,
-                 num_channels=1, input_shape=28, out_filters=10, num_branches=6):
+                 input_channels=3, input_shape=28, out_filters=10, num_branches=6):
 
         super(SharedEnasChild, self).__init__()
         self.num_branches = num_branches
         self.keep_prob = keep_prob
         self.input_shape = input_shape
-        self.num_channels = num_channels
+        self.num_channels = input_channels
         self.out_filters = out_filters
         self.num_layers = num_layers
         self.layerList = nn.ModuleList([])
@@ -90,7 +90,7 @@ class SharedEnasChild(nn.Module):
         self.pool_layers = [pool_distance - 1, 2 * pool_distance - 1]
 
         self.stemConv = nn.Sequential(
-            nn.Conv2d(num_channels, self.out_filters, kernel_size=3, padding=1, bias=False),
+            nn.Conv2d(self.num_channels, self.out_filters, kernel_size=3, padding=1, bias=False),
             nn.BatchNorm2d(out_filters, track_running_stats=False)
         )
 

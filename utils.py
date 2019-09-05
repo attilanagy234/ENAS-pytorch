@@ -53,8 +53,8 @@ def get_logger(name=__file__, level=logging.INFO):
     logger.addHandler(handler)
     return logger
 
-def get_data_loaders(train_bs, test_bs, labels):
-    data = datasets.MNIST('../data', train=True, download=True,
+def get_data_loaders_CIFAR(train_bs, test_bs, labels):
+    data = datasets.CIFAR10('../data', train=True, download=True,
                           transform=transforms.Compose([
                               transforms.ToTensor(),
                               transforms.Normalize((0.1307,), (0.3081,))

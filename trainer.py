@@ -17,7 +17,8 @@ class Trainer(object):
                  writer,
                  log_interval,
                  num_of_children,
-                 input_dim,
+                 input_channels,
+                 input_shape,
                  num_classes,
                  learning_rate_child,
                  momentum_child,
@@ -32,7 +33,8 @@ class Trainer(object):
         self.log_interval = log_interval
         self.num_of_children = num_of_children
 
-        self.input_dim = input_dim
+        self.input_shape = input_shape
+        self.input_channels = input_channels
         self.num_classes = num_classes
         self.out_filters = out_filters
 
@@ -57,7 +59,7 @@ class Trainer(object):
         if self.isShared:
             self.child = SharedEnasChild(self.num_layers, self.learning_rate_child, self.momentum,
                                          num_classes=self.num_classes, out_filters=self.out_filters,
-                                         input_shape=self.input_dim)
+                                         input_shape=self.input_shape, input_channels=self.input_channels)
 
     ## unused
     def make_config(self, raw_config):
@@ -126,9 +128,9 @@ class Trainer(object):
                 if self.isShared:
                     child = self.child
                 else:
-                    child = EnasChild(conf, self.num_layers, self.learning_rate_child, momentum,
+                    child = SharedEnasChild(conf, self.num_layers, self.learning_rate_child, momentum,
                                       num_classes=self.num_classes, out_filters=self.out_filters,
-                                      input_shape=self.input_dim).to(device)
+                                      input_shape=self.input_shape, input_channels=self.input_channels).to(device)
                 self.logger.info("train_controller, epoch/child : ", epoch_idx, child_idx, " child : ", child)
                 self.train_child(child, conf, device, train_loader, 1, epoch_idx, child_idx)
                 validation_accuracy = self.test_child(child, conf, device, valid_loader)

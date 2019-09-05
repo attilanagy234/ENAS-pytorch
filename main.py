@@ -24,9 +24,8 @@ if __name__ == "__main__":
 
     # Hyperparameters
     log_interval = 2
-
-    learning_rate_child = 0.01
-    learning_rate_controller = 0.01
+    learning_rate_child = 0.0001
+    learning_rate_controller = 0.0001
     momentum = 0.5
     l2_decay = 0
     entropy_weight = 0.000  # to encourage exploration
@@ -42,14 +41,15 @@ if __name__ == "__main__":
 
     batch_size = 64
     batch_size_test = 1000
-    reduced_labels = [0, 1, 2, 3]  # other labels needs to be transformed if u skip a label
+    reduced_labels = [1, 2, 3]  # other labels needs to be transformed if u skip a label
     input_dim = (28, 28)
-    num_classes = len(reduced_labels)
+    num_classes = 10
     out_filters = 10
-    input_channels = 1
+    input_channels = 3
 
     # Data
-    train_loader, test_loader = get_data_loaders(batch_size, 1000, reduced_labels)
+    #train_loader, test_loader = get_data_loaders(batch_size, 1000, reduced_labels)
+    train_loader, test_loader = get_data_loaders_CIFAR(batch_size, 1000, [])
 
     # Device
     use_cuda = False
@@ -57,17 +57,18 @@ if __name__ == "__main__":
     device = torch.device("cuda" if use_cuda else "cpu")
 
     trainer = Trainer(writer,
-                      log_interval,
-                      num_of_children,
-                      input_channels,
-                      num_classes,
-                      learning_rate_child,
-                      momentum,
-                      num_of_branches,
-                      num_of_layers,
-                      out_filters,
-                      controller_size,
-                      controller_layers,
+                      log_interval=log_interval,
+                      num_of_children=num_of_children,
+                      input_channels=input_channels,
+                      input_shape=input_dim[0],
+                      num_classes=num_classes,
+                      learning_rate_child=learning_rate_child,
+                      momentum_child=momentum,
+                      num_branches=num_of_branches,
+                      num_of_layers=num_of_layers,
+                      out_filters=out_filters,
+                      controller_size=controller_size,
+                      controller_layers=controller_layers,
                       isShared=True
                       )
 
