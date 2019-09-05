@@ -122,7 +122,7 @@ class Trainer(object):
                 # get the acc of a single child
                 # (sampled_architecture)
                 conf = self.make_enas_config(sampled_architecture)
-                self.logger.info(conf)
+                print("CONF:" , conf)
                 if self.isShared:
                     child = self.child
                 else:

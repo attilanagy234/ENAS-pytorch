@@ -100,6 +100,7 @@ class SharedEnasChild(nn.Module):
                                            prev_layers="unused")
 
             self.layerList.append(currentLayer)
+            self.layerList.append(nn.BatchNorm2d(out_filters, track_running_stats=False))
 
             if int(layer_id) in self.pool_layers:
                 reductionLayer = FactorizedReduction(out_filters, out_filters, 2)
@@ -113,19 +114,25 @@ class SharedEnasChild(nn.Module):
 
     def forward(self, x, config):
 
-
-        #TODO: more layer_idx than items in config
-        #TODO: skip connections
+        prev_outputs = []
 
         x = self.stemConv(x)
         current_branch = 0
 
-        for layer_idx in range(len(self.layerList)):
-            branchid, connections = config[str(current_branch)]
-            current_branch+=1
-            
-            if isinstance(self.layerList[layer_idx], SharedEnasLayer):
-                x = self.layerList[layer_idx](x, branchid)
+        for layer_idx, layer in enumerate(self.layerList):
+            if isinstance(layer, SharedEnasLayer):
+                # or isinstance(self.layerList[layer_idx], FixedEnasLayer):
+                x = self.layerList[layer_idx](x, config[str(current_branch)], prev_outputs)
+                prev_outputs.append(x)
+                current_branch += 1
+
+            # DOWNSAMPLE all the previuous outputs:
+            elif isinstance(layer, FactorizedReduction):
+
+                for out_idx, output in enumerate(prev_outputs):
+                    x = self.layerList[layer_idx](prev_outputs[out_idx])
+                    prev_outputs[out_idx] = x
+                x = prev_outputs[-1] # not needed
             else:
                 x = self.layerList[layer_idx](x)
 

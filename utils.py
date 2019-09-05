@@ -52,3 +52,28 @@ def get_logger(name=__file__, level=logging.INFO):
     logger.setLevel(level)
     logger.addHandler(handler)
     return logger
+
+def get_data_loaders(train_bs, test_bs, labels):
+    data = datasets.MNIST('../data', train=True, download=True,
+                          transform=transforms.Compose([
+                              transforms.ToTensor(),
+                              transforms.Normalize((0.1307,), (0.3081,))
+                          ]))
+
+    if len(labels) != 0:
+        reduceLabels(data, labels)
+
+    train_loader = torch.utils.data.DataLoader(
+        data,
+        batch_size=train_bs,
+        shuffle=True)
+
+    test_loader = torch.utils.data.DataLoader(
+        data,
+        batch_size=test_bs,
+        shuffle=True)
+
+    return train_loader, test_loader
+
+
+

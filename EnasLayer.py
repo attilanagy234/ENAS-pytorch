@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 class FactorizedReduction(nn.Module):
     def __init__(self, in_filters, out_filters, stride=2):
-        super(FactorizedReduction).__init__()
+        super(FactorizedReduction, self).__init__()
 
         assert out_filters % 2 == 0, ("FactorizedReduction: not even number of out_filters")
 
@@ -37,7 +37,8 @@ class FactorizedReduction(nn.Module):
             x_2 = self.path2_pool(x_2)
             x_2 = self.path2_conv(x_2)
 
-            out = torch.cat([x_1, x_2])
+            out = torch.cat([x_1, x_2], dim=1)
+
             out = self.bn(out)
 
         return out
@@ -176,11 +177,23 @@ class SharedEnasLayer(nn.Module):
 
         self.branches = nn.ModuleList([self.branch1, self.branch2, self.branch3, self.branch4, self.branch5, self.branch6])
 
-    def forward(self, x, branch_id):
+    def forward(self, x, config, prev_outputs):
+
+        branch_id = config[0]
+
+        if(1<self.layer_id):
+            skip_connections = config[1]
+        else:
+            skip_connections = []
 
         assert branch_id in range(1, 7), ("branch_id not in range(1,7), ", branch_id)
 
         out = self.branches[branch_id-1](x)
+
+        for i in range(len(prev_outputs)):
+
+            if(skip_connections[i] == 1):
+                out += prev_outputs[i]
 
         return out
 
