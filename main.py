@@ -5,7 +5,7 @@ import datetime
 from trainer import *
 from utils import *
 from pathlib import Path
-
+import time
 # Install latest Tensorflow build
 # from tensorflow import summary
 
@@ -16,19 +16,19 @@ if __name__ == "__main__":
     np.random.seed(360)
 
     current_time = datetime.datetime.now()
-    logdir = Path('../runs/') / str(current_time).replace(" ", "_").replace('.', '')
-
-    writer = SummaryWriter('runs')
+    name = str(time.time())
+    name = "" + name
+    writer = SummaryWriter(comment=name)
 
     # command: tensorboard --logdir=runs
 
     # Hyperparameters
     log_interval = 2
-    learning_rate_child = 0.0001
-    learning_rate_controller = 0.0001
+    learning_rate_child = 0.001
+    learning_rate_controller = 0.001
     momentum = 0.5
     l2_decay = 0
-    entropy_weight = 0.000  # to encourage exploration
+    entropy_weight = 0.0001  # to encourage exploration
 
     epoch_controller = 100
     epoch_child = 1
@@ -36,8 +36,8 @@ if __name__ == "__main__":
     controller_layers = 2
 
     num_of_branches = 6
-    num_of_layers = 4
-    num_of_children = 15
+    num_of_layers = 2
+    num_of_children = 3
 
     batch_size = 64
     batch_size_test = 1000
@@ -45,11 +45,11 @@ if __name__ == "__main__":
     input_dim = (28, 28)
     num_classes = 10
     out_filters = 10
-    input_channels = 3
+    input_channels = 1
 
     # Data
     #train_loader, test_loader = get_data_loaders(batch_size, 1000, reduced_labels)
-    train_loader, test_loader = get_data_loaders_CIFAR(batch_size, 1000, [])
+    train_loader, test_loader = get_data_loaders(batch_size, 1000, reduced_labels)
 
     # Device
     use_cuda = False

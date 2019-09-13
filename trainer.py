@@ -160,7 +160,8 @@ class Trainer(object):
             self.logger.info("step:", step)
 
             self.writer.add_scalar("entropy_weight", entropy_weight, global_step=epoch_idx)
-            self.writer.add_histogram("sampled_arcs", model.sampled_architecture, global_step=epoch_idx)
+            self.writer.add_histogram("sampled_branches", model.sampled_architecture[0], global_step=epoch_idx)
+            self.writer.add_histogram("sampled_connections", model.sampled_architecture[1], global_step=epoch_idx)
             self.writer.add_scalar("sampled_logprobs", model.sampled_logprobs, global_step=epoch_idx)
             self.writer.add_scalar("sampled_entropies", model.sampled_entropies, global_step=epoch_idx)
 
