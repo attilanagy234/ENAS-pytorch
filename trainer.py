@@ -243,3 +243,13 @@ class Trainer(object):
             100. * correct / len(valid_loader.dataset)))
 
         return 100. * correct / len(valid_loader.dataset)
+
+
+    def traintest_fixed_architecture(self, config, device, train_loader, valid_loader, train_epoch = 10):
+        fixed_child = FixedEnasChild(config, self.num_layers, self.learning_rate_child, self.momentum,
+                                      num_classes=self.num_classes, out_filters=self.out_filters,
+                                      input_shape=self.input_shape, input_channels=self.input_channels).to(device)
+
+        self.train_child(self, fixed_child, config, device, train_loader, train_epoch, 0, 0)
+
+        return self.test_child(fixed_child, config, device, valid_loader)
