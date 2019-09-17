@@ -170,6 +170,8 @@ class Trainer(object):
 
             #TODO: PPO
             #TODO: needs MEMORY for storing epoch data, needs old policy network
+            #TODO: separate critic network
+            #TODO: controller.policy.eval to get logprobs of a selected actions
             # SAMPLE CODE:
             # #Optimize policy for K epochs:
             # for _ in range(self.K_epochs):
