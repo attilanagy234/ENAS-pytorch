@@ -265,6 +265,6 @@ class Trainer(object):
                                       num_classes=self.num_classes, out_filters=self.out_filters,
                                       input_shape=self.input_shape, input_channels=self.input_channels).to(device)
 
-        self.train_child(self, fixed_child, config, device, train_loader, train_epoch, 0, 0)
+        self.train_child( fixed_child, config, device, train_loader, train_epoch, 0, 0)
 
         return self.test_child(fixed_child, config, device, valid_loader)
