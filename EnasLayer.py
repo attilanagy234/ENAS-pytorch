@@ -153,7 +153,7 @@ class FixedEnasLayer(nn.Module):
         elif branch_id == 5:
             self.layer = PoolBranch(self.in_filers, self.out_filters, 3, "avg")
         else:
-            raise AssertionError("layer_type must be in [0,5]")
+            raise AssertionError("layer_type must be in [0,5] but it was:", branch_id)
 
     def forward(self, x):
         return self.layer(x)

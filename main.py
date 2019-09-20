@@ -38,8 +38,8 @@ if __name__ == "__main__":
     controller_layers = 2
 
     num_of_branches = 6
-    num_of_layers = 4
-    num_of_children = 3
+    num_of_layers = 2
+    num_of_children = 1
 
     batch_size = 64
     batch_size_test = 1000

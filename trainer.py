@@ -261,7 +261,8 @@ class Trainer(object):
 
 
     def traintest_fixed_architecture(self, config, device, train_loader, valid_loader, train_epoch = 10):
-        fixed_child = FixedEnasChild(config, self.num_layers, self.learning_rate_child, self.momentum,
+
+        fixed_child = FixedEnasChild(config, num_layers=self.num_layers,lr=self.learning_rate_child, momentum=self.momentum,
                                       num_classes=self.num_classes, out_filters=self.out_filters,
                                       input_shape=self.input_shape, input_channels=self.input_channels).to(device)
 
