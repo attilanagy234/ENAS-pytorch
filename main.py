@@ -16,11 +16,12 @@ if __name__ == "__main__":
     np.random.seed(360)
 
     current_time = datetime.datetime.now()
-    name = str(time.time())
-    name = "" + name
-    writer = SummaryWriter(comment=name)
+    time = str(time.time())
+    logname =  ""
 
-    # command: tensorboard --logdir=runs
+
+
+    CIFAR = False      #flag for mnist of cifar
 
     # Hyperparameters
     log_interval = 2
@@ -36,8 +37,8 @@ if __name__ == "__main__":
     controller_layers = 2
 
     num_of_branches = 6
-    num_of_layers = 2
-    num_of_children = 3
+    num_of_layers = 4
+    num_of_children = 5
 
     batch_size = 64
     batch_size_test = 1000
@@ -49,7 +50,20 @@ if __name__ == "__main__":
 
     # Data
     #train_loader, test_loader = get_data_loaders(batch_size, 1000, reduced_labels)
-    train_loader, test_loader = get_data_loaders(batch_size, 1000, reduced_labels)
+
+    if CIFAR:
+        train_loader, test_loader = load_CIFAR(batch_size, 1000)
+        input_channels=3
+        logname += "CIFAR"
+    else:
+        train_loader, test_loader = load_MNIST(batch_size, 1000, reduced_labels)
+        input_channels=1
+        logname += "MNIST"
+
+
+    # command: tensorboard --logdir=runs
+    writer = SummaryWriter(comment=logname)
+
 
     # Device
     use_cuda = False

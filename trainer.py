@@ -86,7 +86,6 @@ class Trainer(object):
         return config
 
     def make_enas_config(self, raw_config):
-
         return raw_config
 
     # unused
@@ -109,7 +108,9 @@ class Trainer(object):
 
         for epoch_idx in range(epoch):
             loss = torch.FloatTensor([0])
-            epoch_valacc = torch.FloatTensor([0])
+
+            epoch_valacc = torch.zeros(self.num_of_children)
+            epoch_childs = []
 
             for child_idx in range(self.num_of_children):
                 # images, labels.cuda()
@@ -122,8 +123,11 @@ class Trainer(object):
                 sampled_logprobs = model.sampled_logprobs
 
                 # get the acc of a single child
-                # (sampled_architecture)
+
+                #make child
                 conf = self.make_enas_config(sampled_architecture)
+                epoch_childs.append(conf)
+
                 print("CONF:" , conf)
                 if self.isShared:
                     child = self.child
@@ -131,14 +135,15 @@ class Trainer(object):
                     child = SharedEnasChild(conf, self.num_layers, self.learning_rate_child, momentum,
                                       num_classes=self.num_classes, out_filters=self.out_filters,
                                       input_shape=self.input_shape, input_channels=self.input_channels).to(device)
-                self.logger.info("train_controller, epoch/child : ", epoch_idx, child_idx, " child : ", child)
+
+                self.logger.info("train_controller, epoch/child : ", epoch_idx, child_idx, " child : ", conf)
+
+                #Train child
                 self.train_child(child, conf, device, train_loader, 1, epoch_idx, child_idx)
+
+                #Test child
                 validation_accuracy = self.test_child(child, conf, device, valid_loader)
 
-                # with torch.no_grad():
-                #    prediction = builder(sampled_architecture)(images)
-                # validation_accuracy = torch.mean((torch.max(prediction, 1)[1] == labels).type(torch.float)) #TODO: this shoudl be changed according to the data
-                # or F.nll_loss(prediction, labels, reduction = "sum").item()  #sum up batch loss
 
                 reward = torch.tensor(validation_accuracy).detach()
                 # reward += sampled_entropies * entropy_weight
@@ -147,26 +152,25 @@ class Trainer(object):
 
                 baseline = prev_runs.mean()  # substract baseline to reduce variance in rewards
                 reward = reward - baseline
+
                 self.logger.info(prev_runs, baseline, reward)
 
-                loss += -1 * sampled_logprobs * reward
-                epoch_valacc += validation_accuracy
+                loss -= sampled_logprobs * reward
+                epoch_valacc[child_idx] = validation_accuracy
 
                 # logging to tensorboard
                 self.writer.add_scalar("loss", loss.item(), global_step=step)
                 self.writer.add_scalar("reward", reward, global_step=step)
                 self.writer.add_scalar("valid_acc", validation_accuracy, global_step=step)
+                self.writer.add_scalar("sampled_entropies", sampled_entropies, global_step=step)
+                self.writer.add_scalar("sampled_logprobs", sampled_logprobs, global_step=step)
 
-            self.logger.info("step:", step)
 
-            self.writer.add_scalar("entropy_weight", entropy_weight, global_step=epoch_idx)
-            self.writer.add_histogram("sampled_branches", model.sampled_architecture[0], global_step=epoch_idx)
-            self.writer.add_histogram("sampled_connections", model.sampled_architecture[1], global_step=epoch_idx)
-            self.writer.add_scalar("sampled_logprobs", model.sampled_logprobs, global_step=epoch_idx)
-            self.writer.add_scalar("sampled_entropies", model.sampled_entropies, global_step=epoch_idx)
+            best_child_idx = torch.argmax(epoch_valacc)
+            best_child_conf = child[best_child_idx]
 
-            loss /= self.num_of_children
-            epoch_valacc /= self.num_of_children
+            print('best child validation acc of the current epoch: ', epoch_valacc[best_child_idx], 'its config: ', best_child_conf)
+            #TODO: retrain fromm scratch, save accuracy
 
             #TODO: PPO
             #TODO: needs MEMORY for storing epoch data, needs old policy network
@@ -193,14 +197,19 @@ class Trainer(object):
 
             # trainig:
             loss.backward(retain_graph=True)  # retrain_graph: keep the gradients, idk if we need this but tdvries does
+
             # to normalize gradients : grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), gradBound) #normalize gradient
             optimizer.step()
             model.zero_grad()
 
+            # self.writer.add_histogram("sampled_branches", model.sampled_architecture, global_step=epoch_idx)
+            # self.writer.add_histogram("sampled_connections", model.sampled_architecture[1], global_step=epoch_idx)
             self.writer.add_scalar("epoch_loss", loss.item(), global_step=epoch_idx)
-            self.writer.add_scalar("epoch_loss", epoch_valacc, global_step=epoch_idx)
+            self.writer.add_scalar("epoch_loss", epoch_valacc.mean(), global_step=epoch_idx)
 
-            prev_runs = push_to_tensor_alternative(prev_runs, epoch_valacc)
+            #self.writer.add_graph(child) #ERROR:  TracedModules don't support parameter sharing between modules
+
+            prev_runs = push_to_tensor_alternative(prev_runs,  epoch_valacc.mean())
 
         return prev_runs
 
