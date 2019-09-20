@@ -33,12 +33,13 @@ if __name__ == "__main__":
 
     epoch_controller = 100
     epoch_child = 1
+    child_retrain_epoch = 3  #after each controller epoch, retraining the best performing child configuration from sratch for this many epoch
     controller_size = 5
     controller_layers = 2
 
     num_of_branches = 6
     num_of_layers = 4
-    num_of_children = 5
+    num_of_children = 3
 
     batch_size = 64
     batch_size_test = 1000
@@ -98,7 +99,8 @@ if __name__ == "__main__":
                                        test_loader,
                                        epoch_controller,
                                        momentum,
-                                       entropy_weight)
+                                       entropy_weight,
+                                       child_retrain_epoch)
 
     # writer.add_hparams(({"batch_size": 100,
     #                     "learning_rate_child": 0.01,

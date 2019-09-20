@@ -98,7 +98,7 @@ class Trainer(object):
             self.children.append(self.controller.sample())
 
     def train_controller(self, model, optimizer, device, train_loader, valid_loader, epoch, momentum,
-                         entropy_weight):
+                         entropy_weight, child_retrain_epoch):
 
         model.train()
 
@@ -136,7 +136,7 @@ class Trainer(object):
                                       num_classes=self.num_classes, out_filters=self.out_filters,
                                       input_shape=self.input_shape, input_channels=self.input_channels).to(device)
 
-                self.logger.info("train_controller, epoch/child : ", epoch_idx, child_idx, " child : ", conf)
+#                self.logger.info("train_controller, epoch/child : ", epoch_idx, child_idx, " child : ", conf) # logging error
 
                 #Train child
                 self.train_child(child, conf, device, train_loader, 1, epoch_idx, child_idx)
@@ -153,7 +153,7 @@ class Trainer(object):
                 baseline = prev_runs.mean()  # substract baseline to reduce variance in rewards
                 reward = reward - baseline
 
-                self.logger.info(prev_runs, baseline, reward)
+#               self.logger.info(prev_runs, baseline, reward) # logging error
 
                 loss -= sampled_logprobs * reward
                 epoch_valacc[child_idx] = validation_accuracy
@@ -167,9 +167,11 @@ class Trainer(object):
 
 
             best_child_idx = torch.argmax(epoch_valacc)
-            best_child_conf = child[best_child_idx]
+            best_child_conf = epoch_childs[best_child_idx]
+            retrained_valacc = self.traintest_fixed_architecture(best_child_conf, device,train_loader, valid_loader, child_retrain_epoch)
+            print('best child validation acc of the current epoch: ', epoch_valacc[best_child_idx],'retrained valacc', retrained_valacc, 'its config: ', best_child_conf)
 
-            print('best child validation acc of the current epoch: ', epoch_valacc[best_child_idx], 'its config: ', best_child_conf)
+
             #TODO: retrain fromm scratch, save accuracy
 
             #TODO: PPO
@@ -205,7 +207,9 @@ class Trainer(object):
             # self.writer.add_histogram("sampled_branches", model.sampled_architecture, global_step=epoch_idx)
             # self.writer.add_histogram("sampled_connections", model.sampled_architecture[1], global_step=epoch_idx)
             self.writer.add_scalar("epoch_loss", loss.item(), global_step=epoch_idx)
-            self.writer.add_scalar("epoch_loss", epoch_valacc.mean(), global_step=epoch_idx)
+            self.writer.add_scalar("epoch mean validation acc.", epoch_valacc.mean(), global_step=epoch_idx)
+            self.writer.add_scalar("epoch best child retrained validation acc.", epoch_valacc.mean(), global_step=epoch_idx)
+
 
             #self.writer.add_graph(child) #ERROR:  TracedModules don't support parameter sharing between modules
 
