@@ -35,10 +35,17 @@ class FixedEnasChild(nn.Module):
             self.layerList.append(currentLayer)
             last_kernel = currentLayer.layer.kernel
 
+
+            #TODO: bug: expected 10 channels but got 20 instead:
+            # if int(layer_id) in self.pool_layers:
+            #
+            #     reductionLayer = FactorizedReduction(out_filters, out_filters*2, 2)
+            #     self.out_filters *= 2
+            #     self.layerList.append(reductionLayer)
+
             if int(layer_id) in self.pool_layers:
 
-                reductionLayer = FactorizedReduction(out_filters, out_filters*2, 2)
-                self.out_filters *= 2
+                reductionLayer = FactorizedReduction(out_filters, out_filters, 2)
                 self.layerList.append(reductionLayer)
 
 
@@ -57,13 +64,14 @@ class FixedEnasChild(nn.Module):
         for layer_idx, layer in enumerate(self.layerList):
             if isinstance(layer, FixedEnasLayer):
                 # or isinstance(self.layerList[layer_idx], FixedEnasLayer):
+
                 x = self.layerList[layer_idx](x, config[str(current_enaslayer)], prev_outputs)
+
                 prev_outputs.append(x)
                 current_enaslayer += 1
 
             # DOWNSAMPLE all the previuous outputs:
             elif isinstance(layer, FactorizedReduction):
-
                 for out_idx, output in enumerate(prev_outputs):
                     x = self.layerList[layer_idx](prev_outputs[out_idx])
                     prev_outputs[out_idx] = x
@@ -102,8 +110,6 @@ class SharedEnasChild(nn.Module):
             nn.BatchNorm2d(out_filters, track_running_stats=False)
         )
 
-        #TODO: prevoutputs = preylayers?
-
         for layer_id in range(self.num_layers):
 
             currentLayer = SharedEnasLayer(in_filters=out_filters, out_filters=out_filters, layer_id=layer_id+1,
@@ -123,6 +129,8 @@ class SharedEnasChild(nn.Module):
         self.optimizer = torch.optim.SGD(self.parameters(), lr=lr, momentum=momentum)
 
     def forward(self, x, config):
+
+        #TODO: prevoutputs = preylayers?
 
         prev_outputs = []
 

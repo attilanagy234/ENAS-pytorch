@@ -146,7 +146,7 @@ class FixedEnasLayer(nn.Module):
 
         branch_id = config[0]
 
-        if( 1 < self.layer_id):
+        if (0 < self.layer_id):
             skip_connections = config[1]
         else:
             skip_connections = []
@@ -155,9 +155,12 @@ class FixedEnasLayer(nn.Module):
 
         out = self.layer(x)
 
+        assert len(skip_connections) == len(prev_outputs), (
+        "len(skip_connections) not equal len(prev_output) ", skip_connections, len(prev_outputs))
+
         for i in range(len(prev_outputs)):
 
-            if(skip_connections[i] == 1):
+            if (skip_connections[i] == 1):
                 out += prev_outputs[i]
 
         return out
@@ -179,25 +182,25 @@ class SharedEnasLayer(nn.Module):
         self.branch5 = PoolBranch(self.in_filers, self.out_filters, 3, "max")
         self.branch6 = PoolBranch(self.in_filers, self.out_filters, 3, "avg")
 
-        self.branches = nn.ModuleList([self.branch1, self.branch2, self.branch3, self.branch4, self.branch5, self.branch6])
+        self.branches = nn.ModuleList(
+            [self.branch1, self.branch2, self.branch3, self.branch4, self.branch5, self.branch6])
 
     def forward(self, x, config, prev_outputs):
 
         branch_id = config[0]
 
-        if(1<self.layer_id):
+        if (1 < self.layer_id):
             skip_connections = config[1]
         else:
             skip_connections = []
 
         assert branch_id in range(0, 6), ("branch_id not in range(1,7), ", branch_id)
 
-        out = self.branches[branch_id-1](x)
+        out = self.branches[branch_id - 1](x)
 
         for i in range(len(prev_outputs)):
 
-            if(skip_connections[i] == 1):
+            if (skip_connections[i] == 1):
                 out += prev_outputs[i]
 
         return out
-
