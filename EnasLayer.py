@@ -43,19 +43,6 @@ class FactorizedReduction(nn.Module):
 
         return out
 
-    # def _factorized_reduction(self, x, out_filters, stride, is_training):
-    #     """Reduces the shape of x without information loss due to striding."""
-    #     assert out_filters % 2 == 0, (
-    #         "Need even number of filters when using this factorized reduction.")
-    #     if stride == 1:
-    #         with tf.variable_scope("path_conv"):
-    #             inp_c = self._get_C(x)
-    #             w = create_weight("w", [1, 1, inp_c, out_filters])
-    #             x = tf.nn.conv2d(x, w, [1, 1, 1, 1], "SAME",
-    #                              data_format=self.data_format)
-    #             x = batch_norm(x, is_training, data_format=self.data_format)
-    #             return x
-
 
 class ConvBranch(nn.Module):
 
@@ -153,10 +140,27 @@ class FixedEnasLayer(nn.Module):
         elif branch_id == 5:
             self.layer = PoolBranch(self.in_filers, self.out_filters, 3, "avg")
         else:
-            raise AssertionError("layer_type must be in [0,5] but it was:", branch_id)
+            raise AssertionError("branch_id must be in [0,6] but it was:", branch_id)
 
-    def forward(self, x):
-        return self.layer(x)
+    def forward(self, x, config, prev_outputs):
+
+        branch_id = config[0]
+
+        if( 1 < self.layer_id):
+            skip_connections = config[1]
+        else:
+            skip_connections = []
+
+        assert branch_id in range(0, 6), ("branch_id not in range(0,6) but it was ", branch_id)
+
+        out = self.layer(x)
+
+        for i in range(len(prev_outputs)):
+
+            if(skip_connections[i] == 1):
+                out += prev_outputs[i]
+
+        return out
 
 
 class SharedEnasLayer(nn.Module):
