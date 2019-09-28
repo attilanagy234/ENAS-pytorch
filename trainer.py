@@ -130,7 +130,7 @@ class Trainer(object):
 
                 print("CONF:" , conf)
                 if self.isShared:
-                    child = self.child
+                    child = self.child.to(device)
                 else:
                     child = SharedEnasChild(conf, self.num_layers, self.learning_rate_child, momentum,
                                       num_classes=self.num_classes, out_filters=self.out_filters,
@@ -223,6 +223,7 @@ class Trainer(object):
         for epoch_idx in range(epochs):
             for batch_idx, (images, labels) in enumerate(train_loader):
                 images, labels = images.to(device), labels.to(device)
+                child.to(device)
                 child.optimizer.zero_grad()
                 prediction = child(images, config)
                 loss = F.nll_loss(prediction, labels)
