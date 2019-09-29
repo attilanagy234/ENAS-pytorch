@@ -208,7 +208,7 @@ class Trainer(object):
             # self.writer.add_histogram("sampled_connections", model.sampled_architecture[1], global_step=epoch_idx)
             self.writer.add_scalar("epoch_loss", loss.item(), global_step=epoch_idx)
             self.writer.add_scalar("epoch mean validation acc.", epoch_valacc.mean(), global_step=epoch_idx)
-            self.writer.add_scalar("epoch best child retrained validation acc.", epoch_valacc.mean(), global_step=epoch_idx)
+            self.writer.add_scalar("epoch best child retrained validation acc.", retrained_valacc, global_step=epoch_idx)
 
 
             #self.writer.add_graph(child) #ERROR:  TracedModules don't support parameter sharing between modules
