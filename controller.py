@@ -25,6 +25,8 @@ class Controller(nn.Module):
                               hidden_size=self.lstm_size,
                               num_layers=self.lstm_num_layers)
 
+        # the decision in the previous step is fed as input embedding into the next step.
+        # At the first step, the controller network receives an empty embedding as input.
         self.g_emb = nn.Embedding(1, self.lstm_size)  # Learn the  input of the lstm
 
         self.w_emb = nn.Embedding(self.num_branches, self.lstm_size)

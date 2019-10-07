@@ -222,6 +222,7 @@ class Trainer(object):
         child.train()
         for epoch_idx in range(epochs):
             for batch_idx, (images, labels) in enumerate(train_loader):
+
                 images, labels = images.to(device), labels.to(device)
                 child.to(device)
                 child.optimizer.zero_grad()

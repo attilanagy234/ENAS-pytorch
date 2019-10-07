@@ -21,6 +21,19 @@ if __name__ == "__main__":
 
 
 
+
+    #TODO: check
+    #Enas hiperparams:
+    # momentum = 0.5, cosine scheduling(lmax = 0.05, lmin = 0.001, T0 = 10, Tmul2)
+    # architecture search run for 310 epoch
+    # child : params initialized with He, l2_decay = 10-4,
+    # controller : params [-0.1, 0.1], lr = 0.00035, tanh constant=2.5, temperature=5, entropy_Weight = 0.1,
+    # SKIPCONNECTIONS: adding the KL div between skip prob between any to layer, + p=0.4 which is the prior belief that a skip connection is formed, this KL div weighted by 0.8
+    # CNN LAYERS structure: RELU - CONV - BN
+    # skip connections: if multiple skipconenctions: depthwise concat to match the channels then BR + relu
+    # GLOBAL AVG POOLING BEFORE FULLY CONNECTEDS
+
+
     CIFAR = False      #flag for mnist of cifar
 
     # Hyperparameters
@@ -36,6 +49,8 @@ if __name__ == "__main__":
     child_retrain_epoch = 10  #after each controller epoch, retraining the best performing child configuration from sratch for this many epoch
     controller_size = 5
     controller_layers = 2
+
+    num_valid_batches = 1 # child validation using only num_valid_batches batch TODO: implement in code
 
     num_of_branches = 6
     num_of_layers = 6
@@ -73,6 +88,8 @@ if __name__ == "__main__":
 
     device = torch.device("cuda" if use_cuda else "cpu")
 
+
+
     trainer = Trainer(writer,
                       log_interval=log_interval,
                       num_of_children=num_of_children,
@@ -94,6 +111,25 @@ if __name__ == "__main__":
                                             betas=(0.0, 0.999),
                                             eps=1e-3)
 
+    writer.add_text("hparams", str({"batch_size": batch_size,
+                                    "learning_rate_child": learning_rate_child,
+                                    "learning_rate_controller": learning_rate_controller,
+                                    "momentum": momentum,
+                                    "l2_decay": l2_decay,
+                                    "param_per_layer": num_of_branches,
+                                    "num_of_layers": num_of_layers,
+                                    "epoch_controller": epoch_controller,
+                                    "controller_size": controller_size,
+                                    "controller_layers": controller_layers,
+                                    "num_of_children": num_of_children,
+                                    "out_filters": out_filters,
+                                    "epoch_child": epoch_child,
+                                    "entropy_weight": entropy_weight,
+                                    "log_interval": log_interval,
+                                    "input_channels": input_channels,
+                                    "input_dim": input_dim
+                                    }))
+
     val_acc = trainer.train_controller(trainer.controller,
                                        controller_optimizer,
                                        device,
@@ -104,24 +140,7 @@ if __name__ == "__main__":
                                        entropy_weight,
                                        child_retrain_epoch)
 
-    writer.add_text( "hparams", str({"batch_size": batch_size,
-                        "learning_rate_child": learning_rate_child,
-                        "learning_rate_controller": learning_rate_controller,
-                        "momentum": momentum,
-                        "l2_decay": l2_decay,
-                        "param_per_layer": num_of_branches,
-                        "num_of_layers": num_of_layers,
-                        "epoch_controller": epoch_controller,
-                        "controller_size": controller_size,
-                        "controller_layers": controller_layers,
-                        "num_of_children": num_of_children,
-                        "out_filters": out_filters,
-                        "epoch_child": epoch_child,
-                        "entropy_weight": entropy_weight,
-                        "log_interval": log_interval,
-                        "input_channels": input_channels,
-                        "input_dim": input_dim
-                                     }))
+
 
 
     writer.close()
