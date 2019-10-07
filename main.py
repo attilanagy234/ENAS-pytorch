@@ -112,7 +112,8 @@ if __name__ == "__main__":
                       isShared=True,
                       t0=T_0,
                       t_mult=T_mult,
-                      eta_min=L_min
+                      eta_min=L_min,
+                      epoch_child=epoch_child,
                       )
 
     controller_optimizer = torch.optim.Adam(params=trainer.controller.parameters(),

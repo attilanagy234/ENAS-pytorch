@@ -129,8 +129,7 @@ class SharedEnasChild(nn.Module):
         self.fc1 = nn.Linear(in_features=out_filters, out_features=num_classes)
 
         self.optimizer = torch.optim.SGD(self.parameters(), lr=lr, momentum=momentum)
-        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLr(self.optimizer, T_max=t0, eta_min=eta_min, last_epoch=-1) #according to enas paper: lmax = 0.05, lmin=0.001, t0 = 10, tmul=2
-
+        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=t0, eta_min=eta_min, last_epoch=-1) #according to enas paper: lmax = 0.05, lmin=0.001, t0 = 10, tmul=2
     def forward(self, x, config):
 
         #TODO: prevoutputs = preylayers?

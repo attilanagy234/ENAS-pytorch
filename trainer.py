@@ -30,6 +30,7 @@ class Trainer(object):
                  t0,
                  eta_min,
                  t_mult,
+                 epoch_child,
                  isShared):
 
         self.writer = writer
@@ -42,6 +43,8 @@ class Trainer(object):
         self.out_filters = out_filters
 
         self.isShared = isShared
+
+        self.epoch_child = epoch_child
 
         self.num_branches = num_branches
         self.num_layers = num_of_layers
@@ -149,7 +152,7 @@ class Trainer(object):
 #                self.logger.info("train_controller, epoch/child : ", epoch_idx, child_idx, " child : ", conf) # logging error
 
                 #Train child
-                self.train_child(child, conf, device, train_loader, epoch_childs, epoch_idx, child_idx)
+                self.train_child(child, conf, device, train_loader, self.epoch_child, epoch_idx, child_idx)
 
                 #Test child
                 validation_accuracy = self.test_child(child, conf, device, valid_loader)
