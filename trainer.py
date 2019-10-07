@@ -27,6 +27,9 @@ class Trainer(object):
                  out_filters,
                  controller_size,
                  controller_layers,
+                 t0,
+                 eta_min,
+                 t_mult,
                  isShared):
 
         self.writer = writer
@@ -46,6 +49,11 @@ class Trainer(object):
         self.learning_rate_child = learning_rate_child
         self.momentum = momentum_child
 
+        self.t0 = t0
+        self.eta_min = eta_min
+        self.t_mult = t_mult
+
+
         self.controller = EnasController(self.writer,
                                          self.num_layers,
                                          self.num_branches,
@@ -59,7 +67,9 @@ class Trainer(object):
         if self.isShared:
             self.child = SharedEnasChild(self.num_layers, self.learning_rate_child, self.momentum,
                                          num_classes=self.num_classes, out_filters=self.out_filters,
-                                         input_shape=self.input_shape, input_channels=self.input_channels)
+                                         input_shape=self.input_shape, input_channels=self.input_channels,
+                                         t0=t0, eta_min=eta_min
+                                         )
 
     ## unused
     def make_config(self, raw_config):
@@ -230,6 +240,14 @@ class Trainer(object):
                 loss = F.nll_loss(prediction, labels)
                 loss.backward()
                 child.optimizer.step()
+                child.scheduler.step()
+
+
+                # Warm Restart child scheduler
+                if child.optimizer.param_groups[0]['lr'] == self.eta_min:
+                    self.t0 *= self.t_mult
+                    child.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                        child.optimizer, T_max=self.t0, eta_min=self.eta_min, last_epoch=-1)
 
                 if batch_idx % self.log_interval == 0:
                     self.logger.info('Train Epoch: {}-{}-{} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(

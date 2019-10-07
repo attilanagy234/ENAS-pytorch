@@ -68,7 +68,6 @@ def load_CIFAR(train_bs, test_bs, labels):
                                                 transforms.ToTensor(),
                                                 transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
                                             ]))
- 
 
     test_set = datasets.CIFAR10(root='./data', train=False, download=True,
                                         transform=transforms.Compose([
@@ -89,8 +88,6 @@ def load_CIFAR(train_bs, test_bs, labels):
     return train_loader, test_loader
 
 #RICAP: https://arxiv.org/abs/1811.09030
-
-
 
 
 transform_train = transforms.Compose([
