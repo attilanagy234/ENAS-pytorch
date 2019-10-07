@@ -149,7 +149,7 @@ class Trainer(object):
 #                self.logger.info("train_controller, epoch/child : ", epoch_idx, child_idx, " child : ", conf) # logging error
 
                 #Train child
-                self.train_child(child, conf, device, train_loader, 1, epoch_idx, child_idx)
+                self.train_child(child, conf, device, train_loader, epoch_childs, epoch_idx, child_idx)
 
                 #Test child
                 validation_accuracy = self.test_child(child, conf, device, valid_loader)
