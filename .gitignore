@@ -1,2 +1,5 @@
 .idea
 __pycache__
+data
+runs
+src/runs

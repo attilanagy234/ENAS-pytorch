@@ -34,7 +34,7 @@ if __name__ == "__main__":
     # GLOBAL AVG POOLING BEFORE FULLY CONNECTEDS
 
 
-    CIFAR = False      #flag for mnist of cifar
+    CIFAR = False      #flag for mnist or cifar
 
     # Hyperparameters
     log_interval = 211
