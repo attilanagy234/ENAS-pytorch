@@ -248,3 +248,58 @@ class EnasController(nn.Module):
         skip_log_probs = torch.cat(skip_log_probs)
         self.sampled_logprobs = torch.sum(torch.cat([branch_log_probs, skip_log_probs]))
 
+
+    def eval(self, transition):
+        
+
+        output, hn = self.w_lstm(transition["inputs"], transition["h0"])
+        output = output.squeeze(0)
+        h0 = hn
+
+        logit = self.w_soft(output)
+#
+        if self.temperature is not None:
+            logit /= self.temperature
+
+        out_dist = Categorical(logits=logit)
+
+        branch_logprob = out_dist.log_prob(transition["branch_logporb"])
+
+        branch_entropy = out_dist.entropy()
+
+        inputs = self.w_emb(transition["branch_logporb"])
+        inputs = inputs.unsqueeze(0)
+
+        output, hn = self.w_lstm(inputs, h0)
+        output = output.squeeze(0)
+
+        if transition["layer_id"] > 0:
+
+            query = torch.cat(transition["anchors_w1"], dim=0)
+
+            query = torch.tanh(query+self.w_attn_2(output))
+            query = self.v_attn(query)
+            logits = torch.cat([query, -query], dim=1)
+
+            if self.temperature is not None:
+                logits /= self.temperature
+            if self.tanh_constant is not None:
+                logits = self.tanh_constant * torch.tanh(logits)
+
+            skip_distribution = Categorical(logits=logits)
+
+            skip_logprob = skip_distribution.log_prob(transition["skip_connections"])
+            skip_logprob = torch.sum(skip_logprob)  # maybe without sum()
+
+            skip_entropy = skip_distribution.entropy()
+            skip_entropy = torch.sum(skip_entropy)
+
+        return branch_logprob, skip_logprob, branch_entropy, skip_entropy
+
+
+# TODO: PPO
+#   -eval action in controller
+#   -old policy
+#   -update weights
+# DONE PPO
+# -memory
