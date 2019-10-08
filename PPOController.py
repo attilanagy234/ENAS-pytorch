@@ -1,7 +1,56 @@
+from collections import namedtuple
+
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
 from torch.distributions.categorical import Categorical
+
+
+class Memory():
+
+    def __init__(self):
+        self.layer_id = []
+
+        self.states = []
+        self.hiddenstates = []
+
+        self.branches = []
+        self.branch_logprobs = []
+
+        self.skip_anchors = []
+        self.skip_anchors_w = []
+        self.skipconnections = []
+        self.sc_logprobs = []
+
+        self.rewards = []
+
+    def add_transition(self, layerid, state, hiddenstate, branch, branch_logprob, skip_anchor,anchors_w, skipconnections, skip_logprob):
+        self.layer_id.append(layerid)
+        self.states.append(state)
+        self.hiddenstates.append(hiddenstate)
+        self.branches.append(branch)
+        self.branch_logprobs.append(branch_logprob)
+        self.skip_anchors.append(skip_anchor)
+        self.skip_anchors_w.append(anchors_w)
+        self.skipconnections.append(skipconnections)
+        self.skip_logprobs.append(skip_logprob)
+
+    def add_rewards(self, reward, num_layers):
+        for _ in range(num_layers):
+            self.rewards.append(reward)
+
+    def clean(self):
+        del self.layer_id[:]
+        del self.states[:]
+        del self.hiddenstates[:]
+        del self.branches[:]
+        del self.branch_logprobs[:]
+        del self.skipconnections[:]
+        del self.skip_anchors[:]
+        del self.skip_anchors_w[:]
+        del self.skip_logprobs[:]
+        del self.rewards[:]
+
 
 class EnasController(nn.Module):
 
@@ -44,6 +93,8 @@ class EnasController(nn.Module):
 
         self._reset_params()
 
+        self.memory = Memory()
+
     def _reset_params(self):
         #print("reset params")
 
@@ -53,14 +104,16 @@ class EnasController(nn.Module):
 
         nn.init.uniform_(self.w_lstm.weight_hh_l0, -0.1, 0.1)
         nn.init.uniform_(self.w_lstm.weight_ih_l0, -0.1, 0.1)
+        #nn.init.uniform_(self.w_lstm.all_weights, -0.1, 0.1)
 
     def forward(self):
         h0 = None  # t0 hidden will be nullvec
 
         arc_seq = dict()
-
-        branch_entropies = []
         branch_log_probs = []
+        branch_entropies = []
+
+        transition = dict()
 
         anchors = []
         anchors_w1 = []
@@ -74,6 +127,11 @@ class EnasController(nn.Module):
 
         for layer_id in range(self.num_layers):
             inputs = inputs.view(1, 1, -1)
+
+            transition["layer_id"]=layer_id                             # layerid
+            transition["inputs"]=inputs                               # inputs
+            transition["h0"]=h0                                   # h0
+
             output, hn = self.w_lstm(inputs, h0)
             output = output.squeeze(0)
             h0 = hn
@@ -86,10 +144,14 @@ class EnasController(nn.Module):
             out_dist = Categorical(logits=logit)
             out_id = out_dist.sample()
 
-            arc_seq[str(layer_id)] = [(out_id.item())] #TODO: rewrite trainer:make_config
+            arc_seq[str(layer_id)] = [(out_id.item())]
+
+            transition["branch"]=out_id.item()                       # branch
 
             log_prob = out_dist.log_prob(out_id)
             branch_log_probs.append(log_prob.view(-1))
+
+            transition["branch_logporb"]=log_prob.view(-1)                   # branch_logprob
 
             entropy = out_dist.entropy()
             branch_entropies.append(entropy.view(-1))
@@ -107,6 +169,10 @@ class EnasController(nn.Module):
 
                 # propagate the lstm output through the linear layers
                 query = torch.cat(anchors_w1, dim=0)
+
+                transition["anchors_w1"]=anchors_w1                          #anchorw
+
+
                 query = torch.tanh(query+self.w_attn_2(output))
                 query = self.v_attn(query)
                 logits = torch.cat([query, -query], dim=1)
@@ -121,6 +187,7 @@ class EnasController(nn.Module):
                 #print(logits)
                 skip_connections = skip_distribution.sample().view(layer_id)
                 arc_seq[str(layer_id)].append(skip_connections)
+                transition["skip_connections"]=skip_connections                     #skipconnection
 
                 # get the kl_divergence from skip_target
                 skip_prob = torch.sigmoid(logits)
@@ -132,6 +199,8 @@ class EnasController(nn.Module):
                 skip_log_prob = skip_distribution.log_prob(skip_connections)
                 skip_log_prob = torch.sum(skip_log_prob)
                 skip_log_probs.append(skip_log_prob.view(-1))
+
+                transition["skip_log_prob"]=skip_log_prob                         #skip_log_prob
 
                 # get entropy
                 skip_entropy = skip_distribution.entropy()
@@ -152,16 +221,30 @@ class EnasController(nn.Module):
                 arc_seq[str(layer_id)].append([])
                 inputs = self.g_emb.weight
 
+            transition["anchors"] = anchors                              # anchors
+
             anchors.append(output)
             anchors_w1.append(self.w_attn_2(output))
+
+            Memory.add_transition(
+                transition["layer_id"],
+                transition["inputs"],
+                transition["h0"],
+                transition["branch"],
+                transition["branch_logporb"],
+                transition["achors"],
+                transition["anchors_w1"],
+                transition["skip_connections"],
+                transition["skip_log_prob"],
+            )
 
         self.sampled_architecture = arc_seq
 
         branch_entropies = torch.cat(branch_entropies)
-        # print(skip_entropies)
         skip_entropies = torch.cat(skip_entropies)
         self.sampled_entropies = torch.sum(torch.cat([branch_entropies, skip_entropies]))
 
         branch_log_probs = torch.cat(branch_log_probs)
         skip_log_probs = torch.cat(skip_log_probs)
         self.sampled_logprobs = torch.sum(torch.cat([branch_log_probs, skip_log_probs]))
+
