@@ -75,7 +75,8 @@ if __name__ == "__main__":
 
     if CIFAR:
         train_loader, test_loader = load_CIFAR(batch_size, 1000, [])
-        input_channels=3
+        input_channels = 3
+        input_dim = (32, 32)
         out_filters = 64
 
         logname += "CIFAR"
@@ -122,24 +123,24 @@ if __name__ == "__main__":
                                             eps=1e-3)
 
 
-    params = str({"batch_size": batch_size,
-                                    "learning_rate_child": learning_rate_child,
-                                    "learning_rate_controller": learning_rate_controller,
-                                    "momentum": momentum,
-                                    "l2_decay": l2_decay,
-                                    "param_per_layer": num_of_branches,
-                                    "num_of_layers": num_of_layers,
-                                    "epoch_controller": epoch_controller,
-                                    "controller_size": controller_size,
-                                    "controller_layers": controller_layers,
-                                    "num_of_children": num_of_children,
-                                    "out_filters": out_filters,
-                                    "epoch_child": epoch_child,
-                                    "entropy_weight": entropy_weight,
-                                    "log_interval": log_interval,
-                                    "input_channels": input_channels,
-                                    "input_dim": input_dim
-                                    })
+    params =   str({"batch_size": batch_size,
+                    "learning_rate_child": learning_rate_child,
+                    "learning_rate_controller": learning_rate_controller,
+                    "momentum": momentum,
+                    "l2_decay": l2_decay,
+                    "param_per_layer": num_of_branches,
+                    "num_of_layers": num_of_layers,
+                    "epoch_controller": epoch_controller,
+                    "controller_size": controller_size,
+                    "controller_layers": controller_layers,
+                    "num_of_children": num_of_children,
+                    "out_filters": out_filters,
+                    "epoch_child": epoch_child,
+                    "entropy_weight": entropy_weight,
+                    "log_interval": log_interval,
+                    "input_channels": input_channels,
+                    "input_dim": input_dim
+                    })
 
     writer.add_text("hparams", params)
     print(params)
