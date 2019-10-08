@@ -1,11 +1,9 @@
-from typing import Dict, Union
-import torch
-import torch.nn.functional as F
 from collections import namedtuple
-# from controller import Controller
-from EnasController import EnasController
+
 # from child import Child
 from EnasChild import *
+# from controller import Controller
+from EnasController import EnasController
 from utils import push_to_tensor_alternative, get_logger
 
 layer = namedtuple('layer', 'kernel_size stride pooling_size input_dim output_dim')
@@ -55,7 +53,6 @@ class Trainer(object):
         self.t0 = t0
         self.eta_min = eta_min
         self.t_mult = t_mult
-
 
         self.controller = EnasController(self.writer,
                                          self.num_layers,
@@ -137,26 +134,25 @@ class Trainer(object):
 
                 # get the acc of a single child
 
-                #make child
+                # make child
                 conf = self.make_enas_config(sampled_architecture)
                 epoch_childs.append(conf)
 
-                print("CONF:" , conf)
+                print("CONF:", conf)
                 if self.isShared:
                     child = self.child.to(device)
                 else:
                     child = SharedEnasChild(conf, self.num_layers, self.learning_rate_child, momentum,
-                                      num_classes=self.num_classes, out_filters=self.out_filters,
-                                      input_shape=self.input_shape, input_channels=self.input_channels).to(device)
+                                            num_classes=self.num_classes, out_filters=self.out_filters,
+                                            input_shape=self.input_shape, input_channels=self.input_channels).to(device)
 
-#                self.logger.info("train_controller, epoch/child : ", epoch_idx, child_idx, " child : ", conf) # logging error
+                #                self.logger.info("train_controller, epoch/child : ", epoch_idx, child_idx, " child : ", conf) # logging error
 
-                #Train child
+                # Train child
                 self.train_child(child, conf, device, train_loader, self.epoch_child, epoch_idx, child_idx)
 
-                #Test child
+                # Test child
                 validation_accuracy = self.test_child(child, conf, device, valid_loader)
-
 
                 reward = torch.tensor(validation_accuracy).detach()
                 # reward += sampled_entropies * entropy_weight
@@ -166,7 +162,7 @@ class Trainer(object):
                 baseline = prev_runs.mean()  # substract baseline to reduce variance in rewards
                 reward = reward - baseline
 
-#               self.logger.info(prev_runs, baseline, reward) # logging error
+                #               self.logger.info(prev_runs, baseline, reward) # logging error
 
                 loss -= sampled_logprobs * reward
                 epoch_valacc[child_idx] = validation_accuracy
@@ -178,19 +174,19 @@ class Trainer(object):
                 self.writer.add_scalar("sampled_entropies", sampled_entropies, global_step=step)
                 self.writer.add_scalar("sampled_logprobs", sampled_logprobs, global_step=step)
 
-
             best_child_idx = torch.argmax(epoch_valacc)
             best_child_conf = epoch_childs[best_child_idx]
-            retrained_valacc = self.traintest_fixed_architecture(best_child_conf, device,train_loader, valid_loader, child_retrain_epoch)
-            print('best child validation acc of the current epoch: ', epoch_valacc[best_child_idx],'retrained valacc', retrained_valacc, 'its config: ', best_child_conf)
+            retrained_valacc = self.traintest_fixed_architecture(best_child_conf, device, train_loader, valid_loader,
+                                                                 child_retrain_epoch)
+            print('best child validation acc of the current epoch: ', epoch_valacc[best_child_idx], 'retrained valacc',
+                  retrained_valacc, 'its config: ', best_child_conf)
 
+            # TODO: retrain fromm scratch, save accuracy
 
-            #TODO: retrain fromm scratch, save accuracy
-
-            #TODO: PPO
-            #TODO: needs MEMORY for storing epoch data, needs old policy network
-            #TODO: separate critic network
-            #TODO: controller.policy.eval to get logprobs of a selected actions
+            # TODO: PPO
+            # TODO: needs MEMORY for storing epoch data, needs old policy network
+            # TODO: separate critic network
+            # TODO: controller.policy.eval to get logprobs of a selected actions
             # SAMPLE CODE:
             # #Optimize policy for K epochs:
             # for _ in range(self.K_epochs):
@@ -221,12 +217,12 @@ class Trainer(object):
             # self.writer.add_histogram("sampled_connections", model.sampled_architecture[1], global_step=epoch_idx)
             self.writer.add_scalar("epoch_loss", loss.item(), global_step=epoch_idx)
             self.writer.add_scalar("epoch mean validation acc.", epoch_valacc.mean(), global_step=epoch_idx)
-            self.writer.add_scalar("epoch best child retrained validation acc.", retrained_valacc, global_step=epoch_idx)
+            self.writer.add_scalar("epoch best child retrained validation acc.", retrained_valacc,
+                                   global_step=epoch_idx)
 
+            # self.writer.add_graph(child) #ERROR:  TracedModules don't support parameter sharing between modules
 
-            #self.writer.add_graph(child) #ERROR:  TracedModules don't support parameter sharing between modules
-
-            prev_runs = push_to_tensor_alternative(prev_runs,  epoch_valacc.mean())
+            prev_runs = push_to_tensor_alternative(prev_runs, epoch_valacc.mean())
 
         return prev_runs
 
@@ -244,7 +240,6 @@ class Trainer(object):
                 loss.backward()
                 child.optimizer.step()
                 child.scheduler.step()
-
 
                 # Warm Restart child scheduler
                 if child.optimizer.param_groups[0]['lr'] == self.eta_min:
@@ -282,13 +277,13 @@ class Trainer(object):
 
         return 100. * correct / len(valid_loader.dataset)
 
+    def traintest_fixed_architecture(self, config, device, train_loader, valid_loader, train_epoch=10):
 
-    def traintest_fixed_architecture(self, config, device, train_loader, valid_loader, train_epoch = 10):
+        fixed_child = FixedEnasChild(config, num_layers=self.num_layers, lr=self.learning_rate_child,
+                                     momentum=self.momentum,
+                                     num_classes=self.num_classes, out_filters=self.out_filters,
+                                     input_shape=self.input_shape, input_channels=self.input_channels).to(device)
 
-        fixed_child = FixedEnasChild(config, num_layers=self.num_layers,lr=self.learning_rate_child, momentum=self.momentum,
-                                      num_classes=self.num_classes, out_filters=self.out_filters,
-                                      input_shape=self.input_shape, input_channels=self.input_channels).to(device)
-
-        self.train_child( fixed_child, config, device, train_loader, train_epoch, 0, 0)
+        self.train_child(fixed_child, config, device, train_loader, train_epoch, 0, 0)
 
         return self.test_child(fixed_child, config, device, valid_loader)

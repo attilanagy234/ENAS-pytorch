@@ -1,29 +1,42 @@
-import torch
+import argparse
+import datetime
+import time
+
 import numpy as np
 from tensorboardX import SummaryWriter
-import datetime
+
 from trainer import *
-from utils import *
-from pathlib import Path
-import time
+
 # Install latest Tensorflow build
 # from tensorflow import summary
-
+from utils import load_CIFAR, load_MNIST
 
 if __name__ == "__main__":
+
+    argparse_formatter = lambda prog: argparse.RawDescriptionHelpFormatter(prog, max_help_position=60, width=250)
+
+    parser = argparse.ArgumentParser(formatter_class=argparse_formatter,
+                                     description='Running efficient neural architecture search')
+
+    parser.add_argument('-c', '--cuda', default=False, action='store_true', help='[OPTIONAL] Enablue the usage of Cuda')
+
+
+
+    args = parser.parse_args()
+
+
+
+
     # Seed for reproductivity
     torch.manual_seed(33)
     np.random.seed(360)
 
     current_time = datetime.datetime.now()
     time = str(time.time())
-    logname =  ""
+    logname = ""
 
-
-
-
-    #TODO: check
-    #Enas hiperparams:
+    # TODO: check
+    # Enas hiperparams:
     # momentum = 0.5, TODO: cosine scheduling(lmax = 0.05, lmin = 0.001, T0 = 10, Tmul2)
     # architecture search run for 310 epoch
     # child :TODO: params initialized with He, l2_decay = 10-4,
@@ -33,8 +46,7 @@ if __name__ == "__main__":
     # skip connections: if multiple skipconenctions: depthwise concat to match the channels then BR + relu
     # GLOBAL AVG POOLING BEFORE FULLY CONNECTEDS
 
-
-    CIFAR = False      #flag for mnist or cifar
+    CIFAR = False  # flag for mnist or cifar
 
     # Hyperparameters
     log_interval = 211
@@ -52,11 +64,11 @@ if __name__ == "__main__":
 
     epoch_controller = 100
     epoch_child = 4
-    child_retrain_epoch = 10  #after each controller epoch, retraining the best performing child configuration from sratch for this many epoch
+    child_retrain_epoch = 10  # after each controller epoch, retraining the best performing child configuration from sratch for this many epoch
     controller_size = 5
     controller_layers = 2
 
-    num_valid_batch = 1 # child validation using only num_valid_batches batch TODO: implement in code
+    num_valid_batch = 1  # child validation using only num_valid_batches batch TODO: implement in code
 
     num_of_branches = 6
     num_of_layers = 6
@@ -71,30 +83,26 @@ if __name__ == "__main__":
     input_channels = 1
 
     # Data
-    #train_loader, test_loader = get_data_loaders(batch_size, 1000, reduced_labels)
+    # train_loader, test_loader = get_data_loaders(batch_size, 1000, reduced_labels)
 
     if CIFAR:
         train_loader, test_loader = load_CIFAR(batch_size, 1000, [])
-        input_channels=3
+        input_channels = 3
         out_filters = 64
 
         logname += "CIFAR"
     else:
         train_loader, test_loader = load_MNIST(batch_size, 1000, reduced_labels)
-        input_channels=1
+        input_channels = 1
         logname += "MNIST"
-
 
     # command: tensorboard --logdir=runs
     writer = SummaryWriter(comment=logname)
 
-
     # Device
-    use_cuda = False
+    use_cuda = args.cuda
 
     device = torch.device("cuda" if use_cuda else "cpu")
-
-
 
     trainer = Trainer(writer,
                       log_interval=log_interval,
@@ -121,25 +129,24 @@ if __name__ == "__main__":
                                             betas=(0.0, 0.999),
                                             eps=1e-3)
 
-
     params = str({"batch_size": batch_size,
-                                    "learning_rate_child": learning_rate_child,
-                                    "learning_rate_controller": learning_rate_controller,
-                                    "momentum": momentum,
-                                    "l2_decay": l2_decay,
-                                    "param_per_layer": num_of_branches,
-                                    "num_of_layers": num_of_layers,
-                                    "epoch_controller": epoch_controller,
-                                    "controller_size": controller_size,
-                                    "controller_layers": controller_layers,
-                                    "num_of_children": num_of_children,
-                                    "out_filters": out_filters,
-                                    "epoch_child": epoch_child,
-                                    "entropy_weight": entropy_weight,
-                                    "log_interval": log_interval,
-                                    "input_channels": input_channels,
-                                    "input_dim": input_dim
-                                    })
+                  "learning_rate_child": learning_rate_child,
+                  "learning_rate_controller": learning_rate_controller,
+                  "momentum": momentum,
+                  "l2_decay": l2_decay,
+                  "param_per_layer": num_of_branches,
+                  "num_of_layers": num_of_layers,
+                  "epoch_controller": epoch_controller,
+                  "controller_size": controller_size,
+                  "controller_layers": controller_layers,
+                  "num_of_children": num_of_children,
+                  "out_filters": out_filters,
+                  "epoch_child": epoch_child,
+                  "entropy_weight": entropy_weight,
+                  "log_interval": log_interval,
+                  "input_channels": input_channels,
+                  "input_dim": input_dim
+                  })
 
     writer.add_text("hparams", params)
     print(params)
@@ -152,8 +159,5 @@ if __name__ == "__main__":
                                        momentum,
                                        entropy_weight,
                                        child_retrain_epoch)
-
-
-
 
     writer.close()
