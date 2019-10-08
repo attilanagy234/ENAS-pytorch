@@ -8,7 +8,7 @@ import tensorflow as tf
 
 class FixedEnasChild(nn.Module):
 
-    def __init__(self, enas_config, num_layers, lr=0.01, keep_prob=0.2, momentum=0.5, num_classes=10, input_shape=28, out_filters=10, num_branches=6, input_channels=3):
+    def __init__(self, enas_config, num_layers, lr=0.01, keep_prob=0.2, momentum=0.5, num_classes=10, input_shape=28, out_filters=10, num_branches=6, input_channels=3,  t0=10, eta_min=0.001):
         super(FixedEnasChild, self).__init__()
         self.config = enas_config
         self.num_branches = num_branches
@@ -54,6 +54,8 @@ class FixedEnasChild(nn.Module):
         self.fc1 = nn.Linear(in_features=out_filters, out_features=num_classes)
 
         self.optimizer = torch.optim.SGD(self.parameters(), lr=lr, momentum=momentum)
+        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=t0, eta_min=eta_min, last_epoch=-1) #according to enas paper: lmax = 0.05, lmin=0.001, t0 = 10, tmul=2
+
 
     def forward(self, x, config):
 

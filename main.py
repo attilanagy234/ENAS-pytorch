@@ -90,7 +90,7 @@ if __name__ == "__main__":
 
 
     # Device
-    use_cuda = True
+    use_cuda = False
 
     device = torch.device("cuda" if use_cuda else "cpu")
 
@@ -121,7 +121,8 @@ if __name__ == "__main__":
                                             betas=(0.0, 0.999),
                                             eps=1e-3)
 
-    writer.add_text("hparams", str({"batch_size": batch_size,
+
+    params = str({"batch_size": batch_size,
                                     "learning_rate_child": learning_rate_child,
                                     "learning_rate_controller": learning_rate_controller,
                                     "momentum": momentum,
@@ -138,8 +139,10 @@ if __name__ == "__main__":
                                     "log_interval": log_interval,
                                     "input_channels": input_channels,
                                     "input_dim": input_dim
-                                    }))
+                                    })
 
+    writer.add_text("hparams", params)
+    print(params)
     val_acc = trainer.train_controller(trainer.controller,
                                        controller_optimizer,
                                        device,
