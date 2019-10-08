@@ -1,5 +1,5 @@
 torch==1.1.0
 torchvision==0.3.0
 tensorboardX==1.8
-tensorflow==1.13.1
-numpy==1.16.1
+tensorflow==1.14.0
+numpy==1.17.0
