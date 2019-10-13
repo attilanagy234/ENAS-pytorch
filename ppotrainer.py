@@ -3,7 +3,7 @@ import torch
 import torch.nn.functional as F
 from collections import namedtuple
 # from controller import Controller
-from ppocontroller import *
+from PPOController import *
 # from child import Child
 from EnasChild import *
 from utils import push_to_tensor_alternative, get_logger

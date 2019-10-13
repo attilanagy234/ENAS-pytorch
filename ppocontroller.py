@@ -8,57 +8,64 @@ from torch.distributions.categorical import Categorical
 
 class Memory():
 
-    def __init__(self):
-        self.layer_id = []
+    def __init__(self, num_layers):
 
-        self.states = []
+        self.num_layers = num_layers
+        self.transitions = []
+
+        self.layer_ids = []
+        self.inputs = []
         self.hiddenstates = []
-
+        self.anchors = []
+        self.anchors_w1 = []
         self.branches = []
         self.branch_logprobs = []
-
-        self.skip_anchors = []
-        self.skip_anchors_w = []
-        self.skipconnections = []
-        self.sc_logprobs = []
-
+        self.skip_connections = []
+        self.skip_logprobs = []
         self.rewards = []
 
-    def add_transition(self, layerid, state, hiddenstate, branch, branch_logprob, skip_anchor,anchors_w, skipconnections, skip_logprob):
-        self.layer_id.append(layerid)
-        self.states.append(state)
-        self.hiddenstates.append(hiddenstate)
-        self.branches.append(branch)
-        self.branch_logprobs.append(branch_logprob)
-        self.skip_anchors.append(skip_anchor)
-        self.skip_anchors_w.append(anchors_w)
-        self.skipconnections.append(skipconnections)
-        self.skip_logprobs.append(skip_logprob)
+    def add_transition(self, transition):
 
-    def add_rewards(self, reward, num_layers):
-        for _ in range(num_layers):
-            self.rewards.append(reward)
+        self.transitions.append(transition)
+
+        #skip_logprob: IS THE SUM OF ALL LOGPROBS, more layer is higher
+
+    def add_transition2(self, transition):
+        self.layer_ids.append(transition["layer_id"])
+        self.inputs.append(transition["inputs"])
+        self.hiddenstates.append(transition["h0"])
+        self.anchors.append(transition["anchors"])
+        self.anchors_w1.append(transition["anchors_w1"])
+        self.branches.append(transition["branch"])
+        self.branch_logprobs.append(transition["branch_logporb"])
+        self.skip_connections.append(transition["skip_connections"])
+        self.skip_logprobs.append(transition["skip_logprob"])
+
+    def add_rewards(self, reward):
+        for _ in range(self.num_layers):
+            reward.append(reward)
 
     def clean(self):
-        del self.layer_id[:]
-        del self.states[:]
-        del self.hiddenstates[:]
-        del self.branches[:]
-        del self.branch_logprobs[:]
-        del self.skipconnections[:]
-        del self.skip_anchors[:]
-        del self.skip_anchors_w[:]
-        del self.skip_logprobs[:]
-        del self.rewards[:]
+        del self.transitions[:]
+
+    def get_logprobs(self):
+        branch_logprobs = []
+        skip_logprobs = []
+
+        for tx in self.transitions:
+            branch_logprobs.append(tx["branch_logporb"])
+            skip_logprobs.append(tx["skip_logprob"])
+
+        return branch_logprobs, skip_logprobs
 
 
-class EnasController(nn.Module):
+class PPOController(nn.Module):
 
-    def __init__(self, writer, num_layers=4, num_branches=6, lstm_size=5, lstm_num_layers=2, tanh_constant=1.5,
-                 temperature=None, skip_target = 0.8):
+    def __init__(self, writer, num_layers=4, num_branches=6, lstm_size=5, lstm_num_layers=2, tanh_constant=2.5,
+                 temperature=5, skip_target=0.8):
 
 
-        super(EnasController, self).__init__()
+        super(PPOController, self).__init__()
 
         self.writer = writer
 
@@ -93,11 +100,10 @@ class EnasController(nn.Module):
 
         self._reset_params()
 
-        self.memory = Memory()
+        self.memory = Memory(self.num_layers)
 
     def _reset_params(self):
         #print("reset params")
-
         for m in self.modules():
             if isinstance(m, nn.Linear) or isinstance(m, nn.Embedding):
                 nn.init.uniform_(m.weight, -0.1, 0.1)
@@ -113,7 +119,6 @@ class EnasController(nn.Module):
         branch_log_probs = []
         branch_entropies = []
 
-        transition = dict()
 
         anchors = []
         anchors_w1 = []
@@ -126,11 +131,18 @@ class EnasController(nn.Module):
         inputs = self.g_emb.weight
 
         for layer_id in range(self.num_layers):
-            inputs = inputs.view(1, 1, -1)
 
+            inputs = inputs.view(1, 1, -1)
+            transition = dict()
             transition["layer_id"]=layer_id                             # layerid
             transition["inputs"]=inputs                               # inputs
             transition["h0"]=h0                                   # h0
+            transition["anchors"] = anchors.copy()      # anchors
+            transition["anchors_w1"] = anchors_w1.copy()  # anchorw
+
+
+            print("input dim:", inputs)
+            print("hidden dim:", h0)
 
             output, hn = self.w_lstm(inputs, h0)
             output = output.squeeze(0)
@@ -146,7 +158,7 @@ class EnasController(nn.Module):
 
             arc_seq[str(layer_id)] = [(out_id.item())]
 
-            transition["branch"]=out_id.item()                       # branch
+            transition["branch"]=out_id                                    # branch
 
             log_prob = out_dist.log_prob(out_id)
             branch_log_probs.append(log_prob.view(-1))
@@ -170,7 +182,6 @@ class EnasController(nn.Module):
                 # propagate the lstm output through the linear layers
                 query = torch.cat(anchors_w1, dim=0)
 
-                transition["anchors_w1"]=anchors_w1                          #anchorw
 
 
                 query = torch.tanh(query+self.w_attn_2(output))
@@ -181,6 +192,8 @@ class EnasController(nn.Module):
                     logits /= self.temperature
                 if self.tanh_constant is not None:
                     logits = self.tanh_constant * torch.tanh(logits)
+
+                print("logits forward", logits)
 
                 # sample skip connections from the output
                 skip_distribution = Categorical(logits=logits)
@@ -200,7 +213,7 @@ class EnasController(nn.Module):
                 skip_log_prob = torch.sum(skip_log_prob)
                 skip_log_probs.append(skip_log_prob.view(-1))
 
-                transition["skip_log_prob"]=skip_log_prob                         #skip_log_prob
+                transition["skip_logprob"]=skip_log_prob                         #skip_log_prob
 
                 # get entropy
                 skip_entropy = skip_distribution.entropy()
@@ -220,22 +233,15 @@ class EnasController(nn.Module):
             else:
                 arc_seq[str(layer_id)].append([])
                 inputs = self.g_emb.weight
+                transition["skip_connections"] = []
+                transition["skip_logprob"] = None
 
-            transition["anchors"] = anchors                              # anchors
 
             anchors.append(output)
             anchors_w1.append(self.w_attn_2(output))
 
-            Memory.add_transition(
-                transition["layer_id"],
-                transition["inputs"],
-                transition["h0"],
-                transition["branch"],
-                transition["branch_logporb"],
-                transition["achors"],
-                transition["anchors_w1"],
-                transition["skip_connections"],
-                transition["skip_log_prob"],
+            self.memory.add_transition(
+               transition
             )
 
         self.sampled_architecture = arc_seq
@@ -248,26 +254,28 @@ class EnasController(nn.Module):
         skip_log_probs = torch.cat(skip_log_probs)
         self.sampled_logprobs = torch.sum(torch.cat([branch_log_probs, skip_log_probs]))
 
-
-    def eval(self, transition):
-        
+    def evaluate(self, transition):
 
         output, hn = self.w_lstm(transition["inputs"], transition["h0"])
         output = output.squeeze(0)
         h0 = hn
 
-        logit = self.w_soft(output)
+        logits = self.w_soft(output)
 #
         if self.temperature is not None:
-            logit /= self.temperature
+            logits /= self.temperature
 
-        out_dist = Categorical(logits=logit)
+        out_dist = Categorical(logits=logits)
 
-        branch_logprob = out_dist.log_prob(transition["branch_logporb"])
+        branch_logprob = out_dist.log_prob(transition["branch"])
 
         branch_entropy = out_dist.entropy()
 
-        inputs = self.w_emb(transition["branch_logporb"])
+        inputs = transition["inputs"]
+        h0 = transition["h0"]
+        inputs = inputs.unsqueeze(0)
+
+        inputs = self.w_emb(transition["branch"])
         inputs = inputs.unsqueeze(0)
 
         output, hn = self.w_lstm(inputs, h0)
@@ -286,6 +294,7 @@ class EnasController(nn.Module):
             if self.tanh_constant is not None:
                 logits = self.tanh_constant * torch.tanh(logits)
 
+            print("logits_eval", logits)
             skip_distribution = Categorical(logits=logits)
 
             skip_logprob = skip_distribution.log_prob(transition["skip_connections"])
@@ -294,12 +303,16 @@ class EnasController(nn.Module):
             skip_entropy = skip_distribution.entropy()
             skip_entropy = torch.sum(skip_entropy)
 
+        else:
+            skip_logprob = 0
+            skip_entropy = 0
+
         return branch_logprob, skip_logprob, branch_entropy, skip_entropy
 
 
 # TODO: PPO
-#   -eval action in controller
-#   -old policy
 #   -update weights
 # DONE PPO
+#   -old policy
 # -memory
+# -eval action in controller
