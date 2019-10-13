@@ -2,7 +2,7 @@ import torch
 import numpy as np
 from tensorboardX import SummaryWriter
 import datetime
-from trainer import *
+from ppotrainer import *
 from utils import *
 from pathlib import Path
 import time
@@ -24,29 +24,37 @@ if __name__ == "__main__":
     CIFAR = False      #flag for mnist of cifar
 
     # Hyperparameters
-    log_interval = 2
-    learning_rate_child = 0.001
-    learning_rate_controller = 0.001
-    momentum = 0.5
+    log_interval = 211
+    learning_rate_child = 0.05
+    learning_rate_controller = 0.00035
+    L_max = 0.05
+    L_min = 0.001
+    T_0 = 10
+    T_mult = 2
+    momentum = 0.8
     l2_decay = 0
-    entropy_weight = 0.0001  # to encourage exploration
+    tanh_const = 2.5  # TODO:propagate to controller
+    temperature = 5  # TODO:propagate to controller
+    entropy_weight = 0.1  # to encourage exploration
 
     epoch_controller = 100
-    epoch_child = 1
-    child_retrain_epoch = 3  #after each controller epoch, retraining the best performing child configuration from sratch for this many epoch
+    epoch_child = 4
+    child_retrain_epoch = 10  #after each controller epoch, retraining the best performing child configuration from sratch for this many epoch
     controller_size = 5
     controller_layers = 2
 
+    num_valid_batch = 1 # child validation using only num_valid_batches batch TODO: implement in code
+
     num_of_branches = 6
-    num_of_layers = 4
-    num_of_children = 1
+    num_of_layers = 6
+    num_of_children = 5
 
     batch_size = 64
     batch_size_test = 1000
-    reduced_labels = [1, 2, 3]  # other labels needs to be transformed if u skip a label
+    reduced_labels = []  # other labels needs to be transformed if u skip a label
     input_dim = (28, 28)
     num_classes = 10
-    out_filters = 10
+    out_filters = 24
     input_channels = 1
 
     # Data
@@ -84,7 +92,11 @@ if __name__ == "__main__":
                       out_filters=out_filters,
                       controller_size=controller_size,
                       controller_layers=controller_layers,
-                      isShared=True
+                      isShared=True,
+                      t0=T_0,
+                      t_mult=T_mult,
+                      eta_min=L_min,
+                      epoch_child=epoch_child,
                       )
 
     controller_optimizer = torch.optim.Adam(params=trainer.controller.parameters(),

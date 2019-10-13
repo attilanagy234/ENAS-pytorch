@@ -3,7 +3,7 @@ import torch
 import torch.nn.functional as F
 from collections import namedtuple
 # from controller import Controller
-from EnasController import EnasController
+from ppocontroller import *
 # from child import Child
 from EnasChild import *
 from utils import push_to_tensor_alternative, get_logger
@@ -31,7 +31,8 @@ class Trainer(object):
                  eta_min,
                  t_mult,
                  epoch_child,
-                 isShared):
+                 isShared,
+                 eps_clip = 0.2):
 
         self.writer = writer
         self.log_interval = log_interval
@@ -56,12 +57,22 @@ class Trainer(object):
         self.eta_min = eta_min
         self.t_mult = t_mult
 
+        self.eps_clip =eps_clip
 
-        self.controller = EnasController(self.writer,
-                                         self.num_layers,
-                                         self.num_branches,
-                                         controller_size,
-                                         controller_layers)  # self,num_layers=2,num_branches=4,lstm_size=5,lstm_num_layers=2,tanh_constant=1.5,temperature=None
+        self.controller = PPOController(self.writer,
+                                                      self.num_layers,
+                                                      self.num_branches,
+                                                      controller_size,
+                                                      controller_layers)  # self,num_layers=2,num_branches=4,lstm_size=5,lstm_num_layers=2,tanh_constant=1.5,temperature=None
+
+        self.controller_old = PPOController(self.writer,
+                                            self.num_layers,
+                                            self.num_branches,
+                                            controller_size,
+                                            controller_layers)  # self,num_layers=2,num_branches=4,lstm_size=5,lstm_num_layers=2,tanh_constant=1.5,temperature=None
+
+        self.controller_old.load_state_dict(self.controller.state_dict())
+
         self.children = list()
 
         self.globaliter = 0
@@ -111,10 +122,8 @@ class Trainer(object):
             self.children.append(self.controller.sample())
 
     def train_controller(self, model, optimizer, device, train_loader, valid_loader, epoch, momentum,
-                         entropy_weight, child_retrain_epoch, child_retrain_interval):
+                         entropy_weight, child_retrain_epoch):
 
-
-        #TODO: entropy_weight
         model.train()
 
         step = 0
@@ -143,7 +152,7 @@ class Trainer(object):
                 conf = self.make_enas_config(sampled_architecture)
                 epoch_childs.append(conf)
 
-                print("CONF:", conf)
+                print("CONF:" , conf)
                 if self.isShared:
                     child = self.child.to(device)
                 else:
@@ -183,14 +192,53 @@ class Trainer(object):
 
             best_child_idx = torch.argmax(epoch_valacc)
             best_child_conf = epoch_childs[best_child_idx]
+            retrained_valacc = self.traintest_fixed_architecture(best_child_conf, device,train_loader, valid_loader, child_retrain_epoch)
+            print('best child validation acc of the current epoch: ', epoch_valacc[best_child_idx],'retrained valacc', retrained_valacc, 'its config: ', best_child_conf)
 
-            self.writer.add_text("Best child architercure - valacc", str(best_child_conf) + " -- val acc: " + torch.max(epoch_valacc))
+            # TODO: PPO
 
-            if epoch_idx % child_retrain_interval == 0:
+            ##TODO: separate critic network
 
-                retrained_valacc = self.traintest_fixed_architecture(best_child_conf, device,train_loader, valid_loader, child_retrain_epoch)
-                print('best child validation acc of the current epoch: ', epoch_valacc[best_child_idx],'retrained valacc', retrained_valacc, 'its config: ', best_child_conf)
+            old_branch_logprobs, old_skip_logprobs = self.controller.memory.get_logprobs()
+            old_branch_logprobs = torch.Tensor(old_branch_logprobs).to(device)
+            old_skip_logprobs = torch.Tensor(old_skip_logprobs).to(device)
 
+            # SAMPLE CODE:
+            # #Optimize policy for K epochs:
+            for _ in range(self.K_epochs):
+
+            #TODO:
+            # Evaluating old actions and values :
+            # A version:
+            #   -get every transition as array from memory and as a single batch feed it to controller
+                # new_branch_logprobs, new_skip_logprobs, branch_entropy, skip_entropy = self.controller.evaluate("transitions")  # TODO: rewrite controller to oldcontroller
+            # B version:
+            #   -go throug every transition one by one
+
+                new_branch_logprobs,  = torch.Tensor()
+                new_skip_logprobs = torch.Tensor()
+
+                # Finding the ratio (pi_theta / pi_theta__old):
+                branch_ratios = torch.exp(new_branch_logprobs - old_branch_logprobs.detach())
+                skip_ratrions = torch.exp(new_skip_logprobs - old_skip_logprobs.detach())
+
+
+
+                ratios = torch.concat(branch_ratios, skip_ratrions)
+
+                # Finding Surrogate Loss:
+                advantages = 0              # TODO: after every child save val_accc-baseline to memory.add_reward(
+                surr1 = ratios * advantages
+                surr2 = torch.clamp(ratios, 1 - self.eps_clip, 1 + self.eps_clip) * advantages
+                loss = -torch.min(surr1, surr2) # + 0.5 * self.MseLoss(state_values, rewards) - 0.01 * dist_entropy
+
+                # take gradient step
+                self.optimizer.zero_grad()
+                loss.mean().backward()
+                self.optimizer.step()
+
+            # Copy new weights into old policy:
+            self.controller_old.load_state_dict(self.controller.state_dict())
 
             # trainig:
             loss.backward(retain_graph=True)  # retrain_graph: keep the gradients, idk if we need this but tdvries does

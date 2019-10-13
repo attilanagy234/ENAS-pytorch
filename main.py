@@ -24,9 +24,9 @@ if __name__ == "__main__":
 
     #TODO: check
     #Enas hiperparams:
-    # momentum = 0.5, TODO: cosine scheduling(lmax = 0.05, lmin = 0.001, T0 = 10, Tmul2)
+    # momentum = 0.5,  cosine scheduling(lmax = 0.05, lmin = 0.001, T0 = 10, Tmul2)
     # architecture search run for 310 epoch
-    # child :TODO: params initialized with He, l2_decay = 10-4,
+    # child : l2_decay = 10-4 or 2e-4, TODO: params initialized with He,
     # controller : params [-0.1, 0.1], lr = 0.00035, tanh constant=2.5, temperature=5, entropy_Weight = 0.1,
     # SKIPCONNECTIONS: adding the KL div between skip prob between any to layer, + p=0.4 which is the prior belief that a skip connection is formed, this KL div weighted by 0.8
     # CNN LAYERS structure: RELU - CONV - BN
@@ -45,29 +45,37 @@ if __name__ == "__main__":
     T_0 = 10
     T_mult = 2
     momentum = 0.8
-    l2_decay = 0
-    tanh_const = 2.5  # TODO:propagate to controller
-    temperature = 5  # TODO:propagate to controller
+    l2_decay = 0.00025
+    tanh_const = 2.5  # set in controller    original: 2.5 or 1.5
+    temperature = 5  # set in controller
     entropy_weight = 0.1  # to encourage exploration
 
-    epoch_controller = 100
-    epoch_child = 4
-    child_retrain_epoch = 10  #after each controller epoch, retraining the best performing child configuration from sratch for this many epoch
+    epoch_controller = 310
+    epoch_child = 2     # maybe: --eval_every_epochs=1 in the original code
+
     controller_size = 5
     controller_layers = 2
 
+    # after each child_retrain_interval epoch, retraining the best performing child configuration from sratch for this many epoch
+    child_retrain_interval = 20
+    child_retrain_epoch = 20
+
     num_valid_batch = 1 # child validation using only num_valid_batches batch TODO: implement in code
 
+# normal:   --child_num_layers = 12 child_out_filters = 36
+#final:   --child_num_layers=24  --child_out_filters=96
+
     num_of_branches = 6
-    num_of_layers = 6
+    num_of_layers = 12
     num_of_children = 5
+    out_filters = 36
+
 
     batch_size = 64
     batch_size_test = 1000
     reduced_labels = []  # other labels needs to be transformed if u skip a label
     input_dim = (28, 28)
     num_classes = 10
-    out_filters = 24
     input_channels = 1
 
     # Data
@@ -152,7 +160,8 @@ if __name__ == "__main__":
                                        epoch_controller,
                                        momentum,
                                        entropy_weight,
-                                       child_retrain_epoch)
+                                       child_retrain_epoch,
+                                       child_retrain_interval)
 
 
 

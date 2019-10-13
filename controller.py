@@ -6,8 +6,8 @@ from torch.distributions.categorical import Categorical
 
 class Controller(nn.Module):
 
-    def __init__(self, writer, num_layers=2, num_branches=4, lstm_size=5, lstm_num_layers=2, tanh_constant=1.5,
-                 temperature=None):
+    def __init__(self, writer, num_layers=2, num_branches=4, lstm_size=5, lstm_num_layers=2, tanh_constant=2.5,
+                 temperature=5):
 
         super(Controller, self).__init__()
 
