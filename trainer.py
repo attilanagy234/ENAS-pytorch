@@ -184,7 +184,7 @@ class Trainer(object):
             best_child_idx = torch.argmax(epoch_valacc)
             best_child_conf = epoch_childs[best_child_idx]
 
-            self.writer.add_text("Best child architercure - valacc", str(best_child_conf) + " -- val acc: " + torch.max(epoch_valacc))
+            print("Best child architercure - valacc", str(best_child_conf) + " -- val acc: " + torch.max(epoch_valacc))
 
             if epoch_idx % child_retrain_interval == 0:
 
