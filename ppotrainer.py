@@ -6,12 +6,13 @@ from collections import namedtuple
 from PPOController import *
 # from child import Child
 from EnasChild import *
-from utils import push_to_tensor_alternative, get_logger
+from utils import queue, get_logger
+import numpy as np
 
 layer = namedtuple('layer', 'kernel_size stride pooling_size input_dim output_dim')
 
 
-class Trainer(object):
+class PPOTrainer(object):
 
     def __init__(self,
                  writer,
@@ -32,11 +33,13 @@ class Trainer(object):
                  t_mult,
                  epoch_child,
                  isShared,
-                 eps_clip = 0.2):
+                 eps_clip=0.2,
+                 K_epochs=5):
 
         self.writer = writer
         self.log_interval = log_interval
         self.num_of_children = num_of_children
+        self.K_epochs = K_epochs
 
         self.input_shape = input_shape
         self.input_channels = input_channels
@@ -57,13 +60,13 @@ class Trainer(object):
         self.eta_min = eta_min
         self.t_mult = t_mult
 
-        self.eps_clip =eps_clip
+        self.eps_clip = eps_clip
 
         self.controller = PPOController(self.writer,
-                                                      self.num_layers,
-                                                      self.num_branches,
-                                                      controller_size,
-                                                      controller_layers)  # self,num_layers=2,num_branches=4,lstm_size=5,lstm_num_layers=2,tanh_constant=1.5,temperature=None
+                                        self.num_layers,
+                                        self.num_branches,
+                                        controller_size,
+                                        controller_layers)  # self,num_layers=2,num_branches=4,lstm_size=5,lstm_num_layers=2,tanh_constant=1.5,temperature=None
 
         self.controller_old = PPOController(self.writer,
                                             self.num_layers,
@@ -71,7 +74,7 @@ class Trainer(object):
                                             controller_size,
                                             controller_layers)  # self,num_layers=2,num_branches=4,lstm_size=5,lstm_num_layers=2,tanh_constant=1.5,temperature=None
 
-        self.controller_old.load_state_dict(self.controller.state_dict())
+        self.controller.load_state_dict(self.controller_old.state_dict())
 
         self.children = list()
 
@@ -121,10 +124,10 @@ class Trainer(object):
         for i in range(self.num_of_children):
             self.children.append(self.controller.sample())
 
-    def train_controller(self, model, optimizer, device, train_loader, valid_loader, epoch, momentum,
-                         entropy_weight, child_retrain_epoch):
+    def train_controller(self, old_model, new_model, optimizer, device, train_loader, valid_loader, epoch, momentum,
+                         entropy_weight, child_retrain_epoch, child_retrain_interval):
 
-        model.train()
+        new_model.train()
 
         step = 0
 
@@ -141,33 +144,33 @@ class Trainer(object):
 
                 step += 1
 
-                model()  # forward pass without input
-                sampled_architecture = model.sampled_architecture
-                sampled_entropies = model.sampled_entropies.detach()
-                sampled_logprobs = model.sampled_logprobs
+                old_model()  # forward pass without input
+                sampled_architecture = old_model.sampled_architecture
+                sampled_entropies = old_model.sampled_entropies.detach()
+                sampled_logprobs = old_model.sampled_logprobs
 
                 # get the acc of a single child
 
-                #make child
+                # make child
                 conf = self.make_enas_config(sampled_architecture)
                 epoch_childs.append(conf)
 
-                print("CONF:" , conf)
+                print("CONF:", conf)
+
                 if self.isShared:
                     child = self.child.to(device)
                 else:
                     child = SharedEnasChild(conf, self.num_layers, self.learning_rate_child, momentum,
-                                      num_classes=self.num_classes, out_filters=self.out_filters,
-                                      input_shape=self.input_shape, input_channels=self.input_channels).to(device)
+                                            num_classes=self.num_classes, out_filters=self.out_filters,
+                                            input_shape=self.input_shape, input_channels=self.input_channels).to(device)
 
-#               self.logger.info("train_controller, epoch/child : ", epoch_idx, child_idx, " child : ", conf) # logging error
+                #               self.logger.info("train_controller, epoch/child : ", epoch_idx, child_idx, " child : ", conf) # logging error
 
-                #Train child
+                # Train child
                 self.train_child(child, conf, device, train_loader, self.epoch_child, epoch_idx, child_idx)
 
-                #Test child
+                # Test child
                 validation_accuracy = self.test_child(child, conf, device, valid_loader)
-
 
                 reward = torch.tensor(validation_accuracy).detach()
                 # reward += sampled_entropies * entropy_weight
@@ -177,91 +180,94 @@ class Trainer(object):
                 baseline = prev_runs.mean()  # substract baseline to reduce variance in rewards
                 reward = reward - baseline
 
-#               self.logger.info(prev_runs, baseline, reward) # logging error
-
-                loss -= sampled_logprobs * reward
-                epoch_valacc[child_idx] = validation_accuracy
+                old_model.memory.add_rewards(reward)
 
                 # logging to tensorboard
-                self.writer.add_scalar("loss", loss.item(), global_step=step)
                 self.writer.add_scalar("reward", reward, global_step=step)
                 self.writer.add_scalar("valid_acc", validation_accuracy, global_step=step)
                 self.writer.add_scalar("sampled_entropies", sampled_entropies, global_step=step)
                 self.writer.add_scalar("sampled_logprobs", sampled_logprobs, global_step=step)
 
-
             best_child_idx = torch.argmax(epoch_valacc)
             best_child_conf = epoch_childs[best_child_idx]
-            retrained_valacc = self.traintest_fixed_architecture(best_child_conf, device,train_loader, valid_loader, child_retrain_epoch)
-            print('best child validation acc of the current epoch: ', epoch_valacc[best_child_idx],'retrained valacc', retrained_valacc, 'its config: ', best_child_conf)
 
-            # TODO: PPO
+            message = "epoch id: " + str(epoch_idx) + " best valacc" + str(
+                epoch_valacc[best_child_idx]) + ' - config: ' + str(best_child_conf)
+            self.writer.add_text("best child", message)
 
-            ##TODO: separate critic network
+            if epoch_idx % child_retrain_interval == 0:
+                retrained_valacc = self.traintest_fixed_architecture(best_child_conf, device, train_loader,
+                                                                     valid_loader, child_retrain_epoch)
+                self.writer.add_scalar("retrainerd child valacc", retrained_valacc, epoch_idx)
 
-            old_branch_logprobs, old_skip_logprobs = self.controller.memory.get_logprobs()
-            old_branch_logprobs = torch.Tensor(old_branch_logprobs).to(device)
-            old_skip_logprobs = torch.Tensor(old_skip_logprobs).to(device)
+            old_branch_logprobs, old_skip_logprobs = old_model.memory.get_logprobs()
+            old_rewards = old_model.memory.rewards
 
-            # SAMPLE CODE:
+            old_skip_logprobs = torch.tensor(old_skip_logprobs, dtype=torch.float).detach()  # NO GRADIENT Info
+            old_branch_logprobs = torch.tensor(old_branch_logprobs, dtype=torch.float).detach()  # NO GRADIENT Info
+
             # #Optimize policy for K epochs:
+
             for _ in range(self.K_epochs):
 
-            #TODO:
-            # Evaluating old actions and values :
-            # A version:
-            #   -get every transition as array from memory and as a single batch feed it to controller
-                # new_branch_logprobs, new_skip_logprobs, branch_entropy, skip_entropy = self.controller.evaluate("transitions")  # TODO: rewrite controller to oldcontroller
-            # B version:
-            #   -go throug every transition one by one
+                print("inside ppo update loop")
 
-                new_branch_logprobs,  = torch.Tensor()
-                new_skip_logprobs = torch.Tensor()
+                new_branch_logprobs = torch.zeros_like(old_branch_logprobs)
+                new_skip_logprobs = torch.zeros_like(old_skip_logprobs)
+                branch_entropies = torch.zeros_like(old_skip_logprobs)
+                skip_entropies = torch.zeros_like(old_skip_logprobs)
+
+                print("branchhsape", new_branch_logprobs.shape)
+                print("skiphape", new_skip_logprobs.shape)
+                print("branch entropyshape", branch_entropies.shape)
+                print("skip entropyshape", skip_entropies.shape)
+
+                for tx_idx in range(len(old_model.memory.rewards)):
+                    print(new_model.evaluate(old_model.memory.transitions[tx_idx]))
+                    new_branch_logprobs[tx_idx], new_skip_logprobs[tx_idx], branch_entropies[tx_idx], skip_entropies[
+                        tx_idx] = new_model.evaluate(old_model.memory.transitions[tx_idx])
 
                 # Finding the ratio (pi_theta / pi_theta__old):
-                branch_ratios = torch.exp(new_branch_logprobs - old_branch_logprobs.detach())
-                skip_ratrions = torch.exp(new_skip_logprobs - old_skip_logprobs.detach())
+                branch_ratios = torch.exp(new_branch_logprobs - old_branch_logprobs)
+                skip_ratios = torch.exp(new_skip_logprobs - old_skip_logprobs)
+                ratios = torch.cat((branch_ratios, skip_ratios))
 
+                advantages = torch.Tensor(old_rewards).mean()
+                ratios = ratios.mean()
+                print( ratios, advantages)
 
-
-                ratios = torch.concat(branch_ratios, skip_ratrions)
-
-                # Finding Surrogate Loss:
-                advantages = 0              # TODO: after every child save val_accc-baseline to memory.add_reward(
                 surr1 = ratios * advantages
-                surr2 = torch.clamp(ratios, 1 - self.eps_clip, 1 + self.eps_clip) * advantages
-                loss = -torch.min(surr1, surr2) # + 0.5 * self.MseLoss(state_values, rewards) - 0.01 * dist_entropy
+                print(surr1)
+
+                surr2 = torch.clamp(ratios, 1 - 0.2, 1 + 0.2) * advantages
+                loss = -torch.min(surr1, surr2)  # + 0.5 * self.MseLoss(state_values, rewards) - 0.01 * dist_entropy
+                print(loss)
 
                 # take gradient step
-                self.optimizer.zero_grad()
-                loss.mean().backward()
-                self.optimizer.step()
+                optimizer.zero_grad()
+                loss.mean().backward(retain_graph=True)
+                optimizer.step()
 
             # Copy new weights into old policy:
-            self.controller_old.load_state_dict(self.controller.state_dict())
-
-            # trainig:
-            loss.backward(retain_graph=True)  # retrain_graph: keep the gradients, idk if we need this but tdvries does
-
-            # to normalize gradients : grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), gradBound) #normalize gradient
-            optimizer.step()
-            model.zero_grad()
+            old_model.memory.clean()
+            old_model.load_state_dict(new_model.state_dict())
 
             # self.writer.add_histogram("sampled_branches", model.sampled_architecture, global_step=epoch_idx)
             # self.writer.add_histogram("sampled_connections", model.sampled_architecture[1], global_step=epoch_idx)
-            self.writer.add_scalar("epoch_loss", loss.item(), global_step=epoch_idx)
+
+            self.writer.add_scalar("epoch_loss", loss.mean().item(), global_step=epoch_idx)
             self.writer.add_scalar("epoch mean validation acc.", epoch_valacc.mean(), global_step=epoch_idx)
-            self.writer.add_scalar("epoch best child retrained validation acc.", retrained_valacc, global_step=epoch_idx)
+            self.writer.add_scalar("epoch best child retrained validation acc.", retrained_valacc,
+                                   global_step=epoch_idx)
 
+            # self.writer.add_graph(child) #ERROR:  TracedModules don't support parameter sharing between modules
 
-            #self.writer.add_graph(child) #ERROR:  TracedModules don't support parameter sharing between modules
-
-            prev_runs = push_to_tensor_alternative(prev_runs,  epoch_valacc.mean())
+            prev_runs = queue(prev_runs, epoch_valacc.mean())
 
         return prev_runs
 
     def train_child(self, child, config, device, train_loader, epochs, c_epoch_idx, child_idx):
-
+        return
         child.train()
         for epoch_idx in range(epochs):
             for batch_idx, (images, labels) in enumerate(train_loader):
@@ -274,7 +280,6 @@ class Trainer(object):
                 loss.backward()
                 child.optimizer.step()
                 child.scheduler.step()
-
 
                 # Warm Restart child scheduler
                 if child.optimizer.param_groups[0]['lr'] == self.eta_min:
@@ -306,19 +311,19 @@ class Trainer(object):
 
         validation_loss /= len(valid_loader.dataset)
 
-        self.logger.info('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+        self.logger.info('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.000f}%)\n'.format(
             validation_loss, correct, len(valid_loader.dataset),
             100. * correct / len(valid_loader.dataset)))
 
         return 100. * correct / len(valid_loader.dataset)
 
+    def traintest_fixed_architecture(self, config, device, train_loader, valid_loader, train_epoch=10):
 
-    def traintest_fixed_architecture(self, config, device, train_loader, valid_loader, train_epoch = 10):
+        fixed_child = FixedEnasChild(config, num_layers=self.num_layers, lr=self.learning_rate_child,
+                                     momentum=self.momentum,
+                                     num_classes=self.num_classes, out_filters=self.out_filters,
+                                     input_shape=self.input_shape, input_channels=self.input_channels).to(device)
 
-        fixed_child = FixedEnasChild(config, num_layers=self.num_layers,lr=self.learning_rate_child, momentum=self.momentum,
-                                      num_classes=self.num_classes, out_filters=self.out_filters,
-                                      input_shape=self.input_shape, input_channels=self.input_channels).to(device)
-
-        self.train_child( fixed_child, config, device, train_loader, train_epoch, 0, 0)
+        self.train_child(fixed_child, config, device, train_loader, train_epoch, 0, 0)
 
         return self.test_child(fixed_child, config, device, valid_loader)

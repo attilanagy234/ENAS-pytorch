@@ -4,10 +4,12 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 from torch.distributions.categorical import Categorical
+import numpy as np
 
 
 class Memory():
 
+    #szepinteni lehetne, csak dic or csak list
     def __init__(self, num_layers):
 
         self.num_layers = num_layers
@@ -31,6 +33,9 @@ class Memory():
         #skip_logprob: IS THE SUM OF ALL LOGPROBS, more layer is higher
 
     def add_transition2(self, transition):
+
+        self.transitions.append(transition)
+
         self.layer_ids.append(transition["layer_id"])
         self.inputs.append(transition["inputs"])
         self.hiddenstates.append(transition["h0"])
@@ -43,20 +48,34 @@ class Memory():
 
     def add_rewards(self, reward):
         for _ in range(self.num_layers):
-            reward.append(reward)
+            self.rewards.append(reward)
 
     def clean(self):
         del self.transitions[:]
 
+        del self.layer_ids[:]
+        del self.inputs[:]
+        del self.hiddenstates[:]
+        del self.anchors[:]
+        del self.anchors_w1[:]
+        del self.branches[:]
+        del self.branch_logprobs[:]
+        del self.skip_connections[:]
+        del self.skip_logprobs[:]
+
     def get_logprobs(self):
-        branch_logprobs = []
-        skip_logprobs = []
+        #branch_logprobs = []
+        #skip_logprobs = []
 
-        for tx in self.transitions:
-            branch_logprobs.append(tx["branch_logporb"])
-            skip_logprobs.append(tx["skip_logprob"])
+        #for tx in self.transitions:
+        #    branch_logprobs.append(tx["branch_logporb"])
+        #    skip_logprobs.append(tx["skip_logprob"])
 
-        return branch_logprobs, skip_logprobs
+
+        skip_logprobs = np.array(self.skip_logprobs, dtype=float)  # you will have np.nan from None
+        np.nan_to_num(skip_logprobs, copy=False)
+
+        return self.branch_logprobs, skip_logprobs
 
 
 class PPOController(nn.Module):
@@ -141,9 +160,6 @@ class PPOController(nn.Module):
             transition["anchors_w1"] = anchors_w1.copy()  # anchorw
 
 
-            print("input dim:", inputs)
-            print("hidden dim:", h0)
-
             output, hn = self.w_lstm(inputs, h0)
             output = output.squeeze(0)
             h0 = hn
@@ -193,7 +209,6 @@ class PPOController(nn.Module):
                 if self.tanh_constant is not None:
                     logits = self.tanh_constant * torch.tanh(logits)
 
-                print("logits forward", logits)
 
                 # sample skip connections from the output
                 skip_distribution = Categorical(logits=logits)
@@ -240,7 +255,7 @@ class PPOController(nn.Module):
             anchors.append(output)
             anchors_w1.append(self.w_attn_2(output))
 
-            self.memory.add_transition(
+            self.memory.add_transition2(
                transition
             )
 
@@ -270,10 +285,6 @@ class PPOController(nn.Module):
         branch_logprob = out_dist.log_prob(transition["branch"])
 
         branch_entropy = out_dist.entropy()
-
-        inputs = transition["inputs"]
-        h0 = transition["h0"]
-        inputs = inputs.unsqueeze(0)
 
         inputs = self.w_emb(transition["branch"])
         inputs = inputs.unsqueeze(0)
@@ -307,7 +318,7 @@ class PPOController(nn.Module):
             skip_logprob = 0
             skip_entropy = 0
 
-        return branch_logprob, skip_logprob, branch_entropy, skip_entropy
+        return branch_logprob[0], skip_logprob, branch_entropy[0], skip_entropy
 
 
 # TODO: PPO

@@ -3,6 +3,7 @@ import numpy as np
 from tensorboardX import SummaryWriter
 import datetime
 from trainer import *
+from ppotrainer import *
 from utils import *
 from pathlib import Path
 import time
@@ -35,9 +36,10 @@ if __name__ == "__main__":
 
 
     CIFAR = False      #flag for mnist of cifar
+    trainPPO = True
 
     # Hyperparameters
-    log_interval = 211
+    log_interval = 10
     learning_rate_child = 0.05
     learning_rate_controller = 0.00035
     L_max = 0.05
@@ -51,14 +53,14 @@ if __name__ == "__main__":
     entropy_weight = 0.1  # to encourage exploration
 
     epoch_controller = 310
-    epoch_child = 2     # maybe: --eval_every_epochs=1 in the original code
+    epoch_child = 1     # maybe: --eval_every_epochs=1 in the original code
 
     controller_size = 5
     controller_layers = 2
 
     # after each child_retrain_interval epoch, retraining the best performing child configuration from sratch for this many epoch
-    child_retrain_interval = 20
-    child_retrain_epoch = 20
+    child_retrain_interval = 1 #10
+    child_retrain_epoch = 1 #20
 
     num_valid_batch = 1 # child validation using only num_valid_batches batch TODO: implement in code
 
@@ -66,14 +68,14 @@ if __name__ == "__main__":
 #final:   --child_num_layers=24  --child_out_filters=96
 
     num_of_branches = 6
-    num_of_layers = 12
-    num_of_children = 5
-    out_filters = 36
+    num_of_layers = 3 #12
+    num_of_children = 1 #5
+    out_filters = 10
 
 
     batch_size = 64
     batch_size_test = 1000
-    reduced_labels = []  # other labels needs to be transformed if u skip a label
+    reduced_labels = [0, 1]  # other labels needs to be transformed if u skip a label
     input_dim = (28, 28)
     num_classes = 10
     input_channels = 1
@@ -97,39 +99,10 @@ if __name__ == "__main__":
     # command: tensorboard --logdir=runs
     writer = SummaryWriter(comment=logname)
 
-
     # Device
     use_cuda = False
 
     device = torch.device("cuda" if use_cuda else "cpu")
-
-
-
-    trainer = Trainer(writer,
-                      log_interval=log_interval,
-                      num_of_children=num_of_children,
-                      input_channels=input_channels,
-                      input_shape=input_dim[0],
-                      num_classes=num_classes,
-                      learning_rate_child=learning_rate_child,
-                      momentum_child=momentum,
-                      num_branches=num_of_branches,
-                      num_of_layers=num_of_layers,
-                      out_filters=out_filters,
-                      controller_size=controller_size,
-                      controller_layers=controller_layers,
-                      isShared=True,
-                      t0=T_0,
-                      t_mult=T_mult,
-                      eta_min=L_min,
-                      epoch_child=epoch_child,
-                      )
-
-    controller_optimizer = torch.optim.Adam(params=trainer.controller.parameters(),
-                                            lr=learning_rate_controller,
-                                            betas=(0.0, 0.999),
-                                            eps=1e-3)
-
 
     params =   str({"batch_size": batch_size,
                     "learning_rate_child": learning_rate_child,
@@ -147,21 +120,92 @@ if __name__ == "__main__":
                     "entropy_weight": entropy_weight,
                     "log_interval": log_interval,
                     "input_channels": input_channels,
-                    "input_dim": input_dim
+                    "input_dim": input_dim,
+                    "CIFAR": CIFAR,
+                    "PPO": trainPPO
                     })
 
     writer.add_text("hparams", params)
     print(params)
-    val_acc = trainer.train_controller(trainer.controller,
-                                       controller_optimizer,
-                                       device,
-                                       train_loader,
-                                       test_loader,
-                                       epoch_controller,
-                                       momentum,
-                                       entropy_weight,
-                                       child_retrain_epoch,
-                                       child_retrain_interval)
+
+    if trainPPO==False:
+
+        trainer = Trainer(writer,
+                          log_interval=log_interval,
+                          num_of_children=num_of_children,
+                          input_channels=input_channels,
+                          input_shape=input_dim[0],
+                          num_classes=num_classes,
+                          learning_rate_child=learning_rate_child,
+                          momentum_child=momentum,
+                          num_branches=num_of_branches,
+                          num_of_layers=num_of_layers,
+                          out_filters=out_filters,
+                          controller_size=controller_size,
+                          controller_layers=controller_layers,
+                          isShared=True,
+                          t0=T_0,
+                          t_mult=T_mult,
+                          eta_min=L_min,
+                          epoch_child=epoch_child,
+                          )
+
+        controller_optimizer = torch.optim.Adam(params=trainer.controller.parameters(),
+                                                lr=learning_rate_controller,
+                                                betas=(0.0, 0.999),
+                                                eps=1e-3)
+        val_acc = trainer.train_controller(trainer.controller,
+                                           controller_optimizer,
+                                           device,
+                                           train_loader,
+                                           test_loader,
+                                           epoch_controller,
+                                           momentum,
+                                           entropy_weight,
+                                           child_retrain_epoch,
+                                           child_retrain_interval)
+
+    if trainPPO==True:
+
+        trainer = PPOTrainer(writer,
+                          log_interval=log_interval,
+                          num_of_children=num_of_children,
+                          input_channels=input_channels,
+                          input_shape=input_dim[0],
+                          num_classes=num_classes,
+                          learning_rate_child=learning_rate_child,
+                          momentum_child=momentum,
+                          num_branches=num_of_branches,
+                          num_of_layers=num_of_layers,
+                          out_filters=out_filters,
+                          controller_size=controller_size,
+                          controller_layers=controller_layers,
+                          isShared=True,
+                          t0=T_0,
+                          t_mult=T_mult,
+                          eta_min=L_min,
+                          epoch_child=epoch_child,
+                          )
+
+        controller_optimizer = torch.optim.Adam(params=trainer.controller.parameters(),
+                                                lr=learning_rate_controller,
+                                                betas=(0.0, 0.999),
+                                                eps=1e-3)
+
+        #kicsitodo: controllers / sharedChild should be created independently from trainer
+
+        val_acc = trainer.train_controller(trainer.controller_old,
+                                           trainer.controller,
+                                           controller_optimizer,
+                                           device,
+                                           train_loader,
+                                           test_loader,
+                                           epoch_controller,
+                                           momentum,
+                                           entropy_weight,
+                                           child_retrain_epoch,
+                                           child_retrain_interval)
+
 
 
 
