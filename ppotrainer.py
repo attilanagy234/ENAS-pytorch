@@ -7,6 +7,7 @@ from PPOController import *
 # from child import Child
 from EnasChild import *
 from utils import queue, get_logger
+from kindergarden import *
 import numpy as np
 
 layer = namedtuple('layer', 'kernel_size stride pooling_size input_dim output_dim')
@@ -77,6 +78,9 @@ class PPOTrainer(object):
         self.controller.load_state_dict(self.controller_old.state_dict())
 
         self.children = list()
+
+        self.bestchilds = Kindergarden(best_of=3)
+
 
         self.globaliter = 0
         self.logger = get_logger()
@@ -170,7 +174,9 @@ class PPOTrainer(object):
                 self.train_child(child, conf, device, train_loader, self.epoch_child, epoch_idx, child_idx)
 
                 # Test child
-                validation_accuracy = self.test_child(child, conf, device, valid_loader)
+                validation_accuracy, validation_loss = self.test_child(child, conf, device, valid_loader)
+
+                self.bestchilds.add(conf, validation_accuracy)
 
                 reward = torch.tensor(validation_accuracy).detach()
                 # reward += sampled_entropies * entropy_weight
@@ -185,20 +191,24 @@ class PPOTrainer(object):
                 # logging to tensorboard
                 self.writer.add_scalar("reward", reward, global_step=step)
                 self.writer.add_scalar("valid_acc", validation_accuracy, global_step=step)
+                self.writer.add_scalar("valid_loss", validation_loss, global_step=step)
                 self.writer.add_scalar("sampled_entropies", sampled_entropies, global_step=step)
                 self.writer.add_scalar("sampled_logprobs", sampled_logprobs, global_step=step)
 
             best_child_idx = torch.argmax(epoch_valacc)
             best_child_conf = epoch_childs[best_child_idx]
 
-            message = "epoch id: " + str(epoch_idx) + " best valacc" + str(
-                epoch_valacc[best_child_idx]) + ' - config: ' + str(best_child_conf)
+            message = "epoch id: " + str(epoch_idx) + " best valacc" + str(epoch_valacc[best_child_idx].item())\
+                      + ' - config: ' + str(best_child_conf)
+
             self.writer.add_text("best child", message)
 
             if epoch_idx % child_retrain_interval == 0:
-                retrained_valacc = self.traintest_fixed_architecture(best_child_conf, device, train_loader,
-                                                                     valid_loader, child_retrain_epoch)
-                self.writer.add_scalar("retrainerd child valacc", retrained_valacc, epoch_idx)
+
+                self.retrain(best_child_conf, device, train_loader, valid_loader, child_retrain_epoch, epoch_idx)
+
+                print("current best childs: ", self.bestchilds.bestchilds)
+                #self.writer.add_scalar("retrainerd child valacc", retrained_valacc, epoch_idx)
 
             old_branch_logprobs, old_skip_logprobs = old_model.memory.get_logprobs()
             old_rewards = old_model.memory.rewards
@@ -210,20 +220,20 @@ class PPOTrainer(object):
 
             for _ in range(self.K_epochs):
 
-                print("inside ppo update loop")
+                #print("inside ppo update loop")
 
                 new_branch_logprobs = torch.zeros_like(old_branch_logprobs)
                 new_skip_logprobs = torch.zeros_like(old_skip_logprobs)
                 branch_entropies = torch.zeros_like(old_skip_logprobs)
                 skip_entropies = torch.zeros_like(old_skip_logprobs)
 
-                print("branchhsape", new_branch_logprobs.shape)
-                print("skiphape", new_skip_logprobs.shape)
-                print("branch entropyshape", branch_entropies.shape)
-                print("skip entropyshape", skip_entropies.shape)
+                #print("branchhsape", new_branch_logprobs.shape)
+                #print("skiphape", new_skip_logprobs.shape)
+                #print("branch entropyshape", branch_entropies.shape)
+                #print("skip entropyshape", skip_entropies.shape)
 
                 for tx_idx in range(len(old_model.memory.rewards)):
-                    print(new_model.evaluate(old_model.memory.transitions[tx_idx]))
+                    #print(new_model.evaluate(old_model.memory.transitions[tx_idx]))
                     new_branch_logprobs[tx_idx], new_skip_logprobs[tx_idx], branch_entropies[tx_idx], skip_entropies[
                         tx_idx] = new_model.evaluate(old_model.memory.transitions[tx_idx])
 
@@ -234,14 +244,14 @@ class PPOTrainer(object):
 
                 advantages = torch.Tensor(old_rewards).mean()
                 ratios = ratios.mean()
-                print( ratios, advantages)
+                #print( ratios, advantages)
 
                 surr1 = ratios * advantages
-                print(surr1)
+                #print(surr1)
 
                 surr2 = torch.clamp(ratios, 1 - 0.2, 1 + 0.2) * advantages
                 loss = -torch.min(surr1, surr2)  # + 0.5 * self.MseLoss(state_values, rewards) - 0.01 * dist_entropy
-                print(loss)
+                #print(loss)
 
                 # take gradient step
                 optimizer.zero_grad()
@@ -257,8 +267,7 @@ class PPOTrainer(object):
 
             self.writer.add_scalar("epoch_loss", loss.mean().item(), global_step=epoch_idx)
             self.writer.add_scalar("epoch mean validation acc.", epoch_valacc.mean(), global_step=epoch_idx)
-            self.writer.add_scalar("epoch best child retrained validation acc.", retrained_valacc,
-                                   global_step=epoch_idx)
+
 
             # self.writer.add_graph(child) #ERROR:  TracedModules don't support parameter sharing between modules
 
@@ -267,8 +276,9 @@ class PPOTrainer(object):
         return prev_runs
 
     def train_child(self, child, config, device, train_loader, epochs, c_epoch_idx, child_idx):
-        return
+
         child.train()
+
         for epoch_idx in range(epochs):
             for batch_idx, (images, labels) in enumerate(train_loader):
 
@@ -315,7 +325,7 @@ class PPOTrainer(object):
             validation_loss, correct, len(valid_loader.dataset),
             100. * correct / len(valid_loader.dataset)))
 
-        return 100. * correct / len(valid_loader.dataset)
+        return 100. * correct / len(valid_loader.dataset), validation_loss
 
     def traintest_fixed_architecture(self, config, device, train_loader, valid_loader, train_epoch=10):
 
@@ -327,3 +337,57 @@ class PPOTrainer(object):
         self.train_child(fixed_child, config, device, train_loader, train_epoch, 0, 0)
 
         return self.test_child(fixed_child, config, device, valid_loader)
+
+
+    def retrain(self, config, device, train_loader, valid_loader, epochs, c_epoch_idx):
+
+
+
+        child = FixedEnasChild(config, num_layers=self.num_layers, lr=self.learning_rate_child,
+                               momentum=self.momentum,
+                               num_classes=self.num_classes, out_filters=self.out_filters,
+                               input_shape=self.input_shape, input_channels=self.input_channels).to(device)
+        child.train()
+
+        for epoch_idx in range(epochs):
+
+            epoch_loss = 0
+
+            for batch_idx, (images, labels) in enumerate(train_loader):
+
+                images, labels = images.to(device), labels.to(device)
+                child.to(device)
+                child.optimizer.zero_grad()
+                prediction = child(images, config)
+                loss = F.nll_loss(prediction, labels)
+                epoch_loss += loss
+
+                loss.backward()
+                child.optimizer.step()
+                child.scheduler.step()
+
+                # Warm Restart child scheduler
+                if child.optimizer.param_groups[0]['lr'] == self.eta_min:
+                    self.t0 *= self.t_mult
+                    child.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                        child.optimizer, T_max=self.t0, eta_min=self.eta_min, last_epoch=-1)
+
+                if batch_idx % self.log_interval == 0:
+                    self.logger.info('Train Epoch: {}-{}-{} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+                        c_epoch_idx, 0, epoch_idx
+                        , batch_idx * len(images), len(train_loader.dataset),
+                          100. * batch_idx / len(train_loader), loss.item()))
+
+            validacc, validloss = self.test_child(child, config, device, valid_loader)
+
+            self.writer.add_scalar('trainloss - retrainded_child' + str(c_epoch_idx) + '/' , loss,
+                                      epoch_idx)
+            self.writer.add_scalar('validloss - retrainded_child' + str(c_epoch_idx) + '/' ,
+                                      validloss, epoch_idx)
+            self.writer.add_scalar('validAcc - retrainded_child' + str(c_epoch_idx) + '/' , validacc,
+                                      epoch_idx)
+
+            self.writer.add_scalar("child retrain valacc", validacc, epoch_idx)
+            self.writer.add_scalar("child retrain valloss", validloss, epoch_idx)
+
+            return validacc, validloss

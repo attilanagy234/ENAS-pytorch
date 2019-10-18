@@ -52,7 +52,7 @@ class Memory():
 
     def clean(self):
         del self.transitions[:]
-
+        del self.rewards[:]
         del self.layer_ids[:]
         del self.inputs[:]
         del self.hiddenstates[:]
@@ -305,7 +305,7 @@ class PPOController(nn.Module):
             if self.tanh_constant is not None:
                 logits = self.tanh_constant * torch.tanh(logits)
 
-            print("logits_eval", logits)
+            #print("logits_eval", logits)
             skip_distribution = Categorical(logits=logits)
 
             skip_logprob = skip_distribution.log_prob(transition["skip_connections"])
@@ -321,9 +321,9 @@ class PPOController(nn.Module):
         return branch_logprob[0], skip_logprob, branch_entropy[0], skip_entropy
 
 
-# TODO: PPO
-#   -update weights
+#
 # DONE PPO
+# -update weights
 #   -old policy
 # -memory
 # -eval action in controller

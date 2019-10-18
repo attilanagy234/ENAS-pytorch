@@ -6,7 +6,8 @@ from collections import namedtuple
 from EnasController import EnasController
 # from child import Child
 from EnasChild import *
-from utils import push_to_tensor_alternative, get_logger
+from utils import queue, get_logger
+from kindergarden import *
 
 layer = namedtuple('layer', 'kernel_size stride pooling_size input_dim output_dim')
 
@@ -66,6 +67,8 @@ class Trainer(object):
 
         self.globaliter = 0
         self.logger = get_logger()
+
+        self.bestchilds = Kindergarden(best_of=3)
 
         if self.isShared:
             self.child = SharedEnasChild(self.num_layers, self.learning_rate_child, self.momentum,
@@ -157,15 +160,15 @@ class Trainer(object):
                 self.train_child(child, conf, device, train_loader, self.epoch_child, epoch_idx, child_idx)
 
                 #Test child
-                validation_accuracy = self.test_child(child, conf, device, valid_loader)
+                validation_accuracy, validation_loss = self.test_child(child, conf, device, valid_loader)
 
 
                 reward = torch.tensor(validation_accuracy).detach()
                 # reward += sampled_entropies * entropy_weight
 
                 # calculate advantage with baseline (moving avg)
-
                 baseline = prev_runs.mean()  # substract baseline to reduce variance in rewards
+
                 reward = reward - baseline
 
 #               self.logger.info(prev_runs, baseline, reward) # logging error
@@ -177,6 +180,7 @@ class Trainer(object):
                 self.writer.add_scalar("loss", loss.item(), global_step=step)
                 self.writer.add_scalar("reward", reward, global_step=step)
                 self.writer.add_scalar("valid_acc", validation_accuracy, global_step=step)
+                self.writer.add_scalar("valid_loss", validation_loss, global_step=step)
                 self.writer.add_scalar("sampled_entropies", sampled_entropies, global_step=step)
                 self.writer.add_scalar("sampled_logprobs", sampled_logprobs, global_step=step)
 
@@ -184,31 +188,29 @@ class Trainer(object):
             best_child_idx = torch.argmax(epoch_valacc)
             best_child_conf = epoch_childs[best_child_idx]
 
-            self.writer.add_text("Best child architercure - valacc", str(best_child_conf) + " -- val acc: " + torch.max(epoch_valacc))
-
             if epoch_idx % child_retrain_interval == 0:
+                self.retrain(best_child_conf, device, train_loader, valid_loader, child_retrain_epoch, epoch_idx)
 
-                retrained_valacc = self.traintest_fixed_architecture(best_child_conf, device,train_loader, valid_loader, child_retrain_epoch)
-                print('best child validation acc of the current epoch: ', epoch_valacc[best_child_idx],'retrained valacc', retrained_valacc, 'its config: ', best_child_conf)
+                print("current best childs: ", self.bestchilds.bestchilds)
+                # self.writer.add_scalar("retrainerd child valacc", retrained_valacc, epoch_idx)
+
+            if epoch_idx != 0:
+                # trainig:
+                loss.backward(retain_graph=True)  # retrain_graph: keep the gradients, idk if we need this but tdvries does
+
+                # to normalize gradients : grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), gradBound) #normalize gradient
+                optimizer.step()
+                model.zero_grad()
+
+                # self.writer.add_histogram("sampled_branches", model.sampled_architecture, global_step=epoch_idx)
+                # self.writer.add_histogram("sampled_connections", model.sampled_architecture[1], global_step=epoch_idx)
+                self.writer.add_scalar("epoch_loss", loss.item(), global_step=epoch_idx)
+                self.writer.add_scalar("epoch mean validation acc.", epoch_valacc.mean(), global_step=epoch_idx)
 
 
-            # trainig:
-            loss.backward(retain_graph=True)  # retrain_graph: keep the gradients, idk if we need this but tdvries does
+                #self.writer.add_graph(child) #ERROR:  TracedModules don't support parameter sharing between modules
 
-            # to normalize gradients : grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), gradBound) #normalize gradient
-            optimizer.step()
-            model.zero_grad()
-
-            # self.writer.add_histogram("sampled_branches", model.sampled_architecture, global_step=epoch_idx)
-            # self.writer.add_histogram("sampled_connections", model.sampled_architecture[1], global_step=epoch_idx)
-            self.writer.add_scalar("epoch_loss", loss.item(), global_step=epoch_idx)
-            self.writer.add_scalar("epoch mean validation acc.", epoch_valacc.mean(), global_step=epoch_idx)
-            self.writer.add_scalar("epoch best child retrained validation acc.", retrained_valacc, global_step=epoch_idx)
-
-
-            #self.writer.add_graph(child) #ERROR:  TracedModules don't support parameter sharing between modules
-
-            prev_runs = push_to_tensor_alternative(prev_runs,  epoch_valacc.mean())
+            prev_runs = queue(prev_runs, epoch_valacc.mean())
 
         return prev_runs
 
@@ -258,11 +260,11 @@ class Trainer(object):
 
         validation_loss /= len(valid_loader.dataset)
 
-        self.logger.info('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+        self.logger.info('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.000f}%)\n'.format(
             validation_loss, correct, len(valid_loader.dataset),
             100. * correct / len(valid_loader.dataset)))
 
-        return 100. * correct / len(valid_loader.dataset)
+        return 100. * correct / len(valid_loader.dataset), validation_loss
 
 
     def traintest_fixed_architecture(self, config, device, train_loader, valid_loader, train_epoch = 10):
@@ -274,3 +276,57 @@ class Trainer(object):
         self.train_child( fixed_child, config, device, train_loader, train_epoch, 0, 0)
 
         return self.test_child(fixed_child, config, device, valid_loader)
+
+
+    def retrain(self, config, device, train_loader, valid_loader, epochs, c_epoch_idx):
+
+
+
+        child = FixedEnasChild(config, num_layers=self.num_layers, lr=self.learning_rate_child,
+                               momentum=self.momentum,
+                               num_classes=self.num_classes, out_filters=self.out_filters,
+                               input_shape=self.input_shape, input_channels=self.input_channels).to(device)
+        child.train()
+
+        for epoch_idx in range(epochs):
+
+            epoch_loss = 0
+
+            for batch_idx, (images, labels) in enumerate(train_loader):
+
+                images, labels = images.to(device), labels.to(device)
+                child.to(device)
+                child.optimizer.zero_grad()
+                prediction = child(images, config)
+                loss = F.nll_loss(prediction, labels)
+                epoch_loss += loss
+
+                loss.backward()
+                child.optimizer.step()
+                child.scheduler.step()
+
+                # Warm Restart child scheduler
+                if child.optimizer.param_groups[0]['lr'] == self.eta_min:
+                    self.t0 *= self.t_mult
+                    child.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                        child.optimizer, T_max=self.t0, eta_min=self.eta_min, last_epoch=-1)
+
+                if batch_idx % self.log_interval == 0:
+                    self.logger.info('Train Epoch: {}-{}-{} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+                        c_epoch_idx, 0, epoch_idx
+                        , batch_idx * len(images), len(train_loader.dataset),
+                          100. * batch_idx / len(train_loader), loss.item()))
+
+            validacc, validloss = self.test_child(child, config, device, valid_loader)
+
+            self.writer.add_scalar('trainloss - retrainded_child' + str(c_epoch_idx) + '/' , loss,
+                                      epoch_idx)
+            self.writer.add_scalar('validloss - retrainded_child' + str(c_epoch_idx) + '/' ,
+                                      validloss, epoch_idx)
+            self.writer.add_scalar('validAcc - retrainded_child' + str(c_epoch_idx) + '/' , validacc,
+                                      epoch_idx)
+
+            self.writer.add_scalar("child retrain valacc", validacc, epoch_idx)
+            self.writer.add_scalar("child retrain valloss", validloss, epoch_idx)
+
+            return validacc, validloss

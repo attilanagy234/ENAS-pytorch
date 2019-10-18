@@ -5,6 +5,7 @@ import datetime
 from trainer import *
 from ppotrainer import *
 from utils import *
+from kindergarden import *
 from pathlib import Path
 import time
 # Install latest Tensorflow build
@@ -36,7 +37,7 @@ if __name__ == "__main__":
 
 
     CIFAR = False      #flag for mnist of cifar
-    trainPPO = True
+    trainPPO = False
 
     # Hyperparameters
     log_interval = 10
