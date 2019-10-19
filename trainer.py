@@ -285,7 +285,7 @@ class Trainer(object):
                                num_classes=self.num_classes, out_filters=self.out_filters,
                                input_shape=self.input_shape, input_channels=self.input_channels).to(device)
 
-        self.writer.add_graph(child)#TODO EXPERIMEntAL
+        #self.writer.add_graph(child)#TODO EXPERIMEntAL
 
         child.train()
 
