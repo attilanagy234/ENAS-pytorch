@@ -1,7 +1,7 @@
-torch==1.1.0
-torchvision==0.3.0
-tensorboardX==1.8
-tensorflow==1.14.0
-numpy==1.17.0
+torch==1.2.0
+torchvision==0.4.0
+tensorboardX==1.9
+#tensorflow==1.14.0
+numpy==1.16.4
 graphviz==0.13
 pyyaml==5.1
