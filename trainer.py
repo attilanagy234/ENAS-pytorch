@@ -189,10 +189,9 @@ class Trainer(object):
             best_child_conf = epoch_childs[best_child_idx]
 
             if epoch_idx % child_retrain_interval == 0:
-                self.retrain(best_child_conf, device, train_loader, valid_loader, child_retrain_epoch, epoch_idx)
-
+                retrained_valacc, retrained_loss = self.retrain(best_child_conf, device, train_loader, valid_loader, child_retrain_epoch, epoch_idx)
                 print("current best childs: ", self.bestchilds.bestchilds)
-                # self.writer.add_scalar("retrainerd child valacc", retrained_valacc, epoch_idx)
+                self.writer.add_scalar("retrainerd child valacc", retrained_valacc, epoch_idx)
 
             if epoch_idx != 0:
                 # trainig:
@@ -206,7 +205,6 @@ class Trainer(object):
                 # self.writer.add_histogram("sampled_connections", model.sampled_architecture[1], global_step=epoch_idx)
                 self.writer.add_scalar("epoch_loss", loss.item(), global_step=epoch_idx)
                 self.writer.add_scalar("epoch mean validation acc.", epoch_valacc.mean(), global_step=epoch_idx)
-
 
                 #self.writer.add_graph(child) #ERROR:  TracedModules don't support parameter sharing between modules
 
@@ -286,6 +284,9 @@ class Trainer(object):
                                momentum=self.momentum,
                                num_classes=self.num_classes, out_filters=self.out_filters,
                                input_shape=self.input_shape, input_channels=self.input_channels).to(device)
+
+        self.writer.add_graph(child)#TODO EXPERIMEntAL
+
         child.train()
 
         for epoch_idx in range(epochs):

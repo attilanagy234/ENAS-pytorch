@@ -175,7 +175,7 @@ class PPOTrainer(object):
 
                 # Test child
                 validation_accuracy, validation_loss = self.test_child(child, conf, device, valid_loader)
-
+                epoch_valacc[child_idx] = validation_accuracy
                 self.bestchilds.add(conf, validation_accuracy)
 
                 reward = torch.tensor(validation_accuracy).detach()
@@ -205,10 +205,10 @@ class PPOTrainer(object):
 
             if epoch_idx % child_retrain_interval == 0:
 
-                self.retrain(best_child_conf, device, train_loader, valid_loader, child_retrain_epoch, epoch_idx)
+                retrained_valacc, retrained_loss = self.retrain(best_child_conf, device, train_loader, valid_loader, child_retrain_epoch, epoch_idx)
 
                 print("current best childs: ", self.bestchilds.bestchilds)
-                #self.writer.add_scalar("retrainerd child valacc", retrained_valacc, epoch_idx)
+                self.writer.add_scalar("retrainerd child valacc", retrained_valacc, epoch_idx)
 
             old_branch_logprobs, old_skip_logprobs = old_model.memory.get_logprobs()
             old_rewards = old_model.memory.rewards
