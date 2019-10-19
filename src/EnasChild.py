@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from EnasLayer import *
 from math import floor
-import tensorflow as tf
 
 
 class FixedEnasChild(nn.Module):

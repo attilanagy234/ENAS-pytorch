@@ -7,7 +7,6 @@ from utils import *
 from pathlib import Path
 import time
 # Install latest Tensorflow build
-# from tensorflow import summary
 
 
 if __name__ == "__main__":
