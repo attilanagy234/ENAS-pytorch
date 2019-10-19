@@ -1,0 +1,41 @@
+CIFAR : False
+trainPPO : True
+
+log_interval : 10
+learning_rate_child : 0.05
+learning_rate_controller : 0.00035
+L_max : 0.05
+L_min : 0.001
+T_0 : 10
+T_mult : 2
+momentum : 0.8
+l2_decay : 0.00025
+tanh_const : 2.5
+temperature : 5
+entropy_weight : 0.1
+
+epoch_controller : 310
+epoch_child : 1
+
+controller_size : 5
+controller_layers : 2
+
+
+child_retrain_interval : 1
+child_retrain_epoch : 10
+
+num_valid_batch : 1
+
+num_of_branches : 6
+num_of_layers : 3
+num_of_children : 1
+out_filters : 10
+
+
+batch_size : 64
+batch_size_test : 1000
+reduced_labels : [0, 1]
+input_dim : (28, 28)
+num_classes : 10
+input_channels : 1
+use_cuda : args.cuda

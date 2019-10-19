@@ -2,6 +2,7 @@ import argparse
 
 import torch
 import numpy as np
+import yaml as yaml
 from tensorboardX import SummaryWriter
 import datetime
 from trainer import *
@@ -17,17 +18,26 @@ import time
 if __name__ == "__main__":
 
 
+    #We read everything from config file as of now
+    # argparse_formatter = lambda prog: argparse.RawDescriptionHelpFormatter(prog, max_help_position=60, width=250)
+    #
+    # parser = argparse.ArgumentParser(formatter_class=argparse_formatter,
+    #                                  description='Running efficient neural architecture search')
+    #
+    # parser.add_argument('-c', '--cuda', default=False, action='store_true', help='[OPTIONAL] Enablue the usage of Cuda')
+    # args = parser.parse_args()
 
-    argparse_formatter = lambda prog: argparse.RawDescriptionHelpFormatter(prog, max_help_position=60, width=250)
-
-    parser = argparse.ArgumentParser(formatter_class=argparse_formatter,
-                                     description='Running efficient neural architecture search')
-
-    parser.add_argument('-c', '--cuda', default=False, action='store_true', help='[OPTIONAL] Enablue the usage of Cuda')
 
 
+    # Read Hyperparameters from config file
+    filename = 'hyperparam_config.yaml'
+    with open(filename, 'r') as f:
+        try:
+            hyperparam_document = yaml.load(f)
+        except yaml.YAMLError as e:
+            raise RuntimeError("Error parsing file %s: %s" % (filename, e))
 
-    args = parser.parse_args()
+    print(hyperparam_document)
     # Seed for reproductivity
     torch.manual_seed(33)
     np.random.seed(360)
@@ -50,51 +60,50 @@ if __name__ == "__main__":
     # skip connections: if multiple skipconenctions: depthwise concat to match the channels then BR + relu
     # GLOBAL AVG POOLING BEFORE FULLY CONNECTEDS
 
-
-    CIFAR = False      #flag for mnist of cifar
-    trainPPO = True
+    CIFAR = hyperparam_document['CIFAR']      #flag for mnist of cifar
+    trainPPO = hyperparam_document['trainPPO']
 
     # Hyperparameters
-    log_interval = 10
-    learning_rate_child = 0.05
-    learning_rate_controller = 0.00035
-    L_max = 0.05
-    L_min = 0.001
-    T_0 = 10
-    T_mult = 2
-    momentum = 0.8
-    l2_decay = 0.00025
-    tanh_const = 2.5  # set in controller    original: 2.5 or 1.5
-    temperature = 5  # set in controller
-    entropy_weight = 0.1  # to encourage exploration
+    log_interval = hyperparam_document['log_interval']
+    learning_rate_child = hyperparam_document['learning_rate_child']
+    learning_rate_controller = hyperparam_document['learning_rate_controller']
+    L_max = hyperparam_document['L_max']
+    L_min = hyperparam_document['L_min']
+    T_0 = hyperparam_document['T_0']
+    T_mult = hyperparam_document['T_mult']
+    momentum = hyperparam_document['momentum']
+    l2_decay = hyperparam_document['l2_decay']
+    tanh_const = hyperparam_document['tanh_const']  # set in controller    original: 2.5 or 1.5
+    temperature = hyperparam_document['temperature']  # set in controller
+    entropy_weight = hyperparam_document['entropy_weight']  # to encourage exploration
 
-    epoch_controller = 310
-    epoch_child = 1     # maybe: --eval_every_epochs=1 in the original code
+    epoch_controller = hyperparam_document['epoch_controller']
+    epoch_child = hyperparam_document['epoch_child']     # maybe: --eval_every_epochs=1 in the original code
 
-    controller_size = 5
-    controller_layers = 2
+    controller_size = hyperparam_document['controller_size']
+    controller_layers = hyperparam_document['controller_layers']
 
     # after each child_retrain_interval epoch, retraining the best performing child configuration from sratch for this many epoch
-    child_retrain_interval = 1 #10
-    child_retrain_epoch = 10 #20
+    child_retrain_interval = hyperparam_document['child_retrain_interval'] #10
+    child_retrain_epoch = hyperparam_document['child_retrain_epoch'] #20
 
-    num_valid_batch = 1 # child validation using only num_valid_batches batch TODO: implement in code
+    num_valid_batch = hyperparam_document['num_valid_batch'] # child validation using only num_valid_batches batch TODO: implement in code
 
 # normal:   --child_num_layers = 12 child_out_filters = 36
 #final:   --child_num_layers=24  --child_out_filters=96
 
-    num_of_branches = 6
-    num_of_layers = 3 #12
-    num_of_children = 1 #5
-    out_filters = 10
+    num_of_branches = hyperparam_document['num_of_branches']
+    num_of_layers = hyperparam_document['num_of_layers'] #12
+    num_of_children = hyperparam_document['num_of_children'] #5
+    out_filters = hyperparam_document['out_filters']
 
 
-    batch_size = 64
-    batch_size_test = 1000
-    reduced_labels = [0, 1]  # other labels needs to be transformed if u skip a label
-    input_dim = (28, 28)
-    num_classes = 10
-    input_channels = 1
+    batch_size = hyperparam_document['batch_size']
+    batch_size_test = hyperparam_document['batch_size_test']
+    reduced_labels = hyperparam_document['reduced_labels']  # other labels needs to be transformed if u skip a label
+    input_dim = hyperparam_document['input_dim']
+    num_classes = hyperparam_document['num_classes']
+    input_channels = hyperparam_document['input_channels']
 
     # Data
     #train_loader, test_loader = get_data_loaders(batch_size, 1000, reduced_labels)
@@ -116,7 +125,7 @@ if __name__ == "__main__":
     writer = SummaryWriter(comment=logname)
 
     # Device
-    use_cuda = args.cuda
+    use_cuda = hyperparam_document['use_cuda']
 
     device = torch.device("cuda" if use_cuda else "cpu")
 
