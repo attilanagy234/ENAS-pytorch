@@ -1,3 +1,5 @@
+import argparse
+
 import torch
 import numpy as np
 from tensorboardX import SummaryWriter
@@ -13,6 +15,19 @@ import time
 
 
 if __name__ == "__main__":
+
+
+
+    argparse_formatter = lambda prog: argparse.RawDescriptionHelpFormatter(prog, max_help_position=60, width=250)
+
+    parser = argparse.ArgumentParser(formatter_class=argparse_formatter,
+                                     description='Running efficient neural architecture search')
+
+    parser.add_argument('-c', '--cuda', default=False, action='store_true', help='[OPTIONAL] Enablue the usage of Cuda')
+
+
+
+    args = parser.parse_args()
     # Seed for reproductivity
     torch.manual_seed(33)
     np.random.seed(360)
@@ -101,7 +116,7 @@ if __name__ == "__main__":
     writer = SummaryWriter(comment=logname)
 
     # Device
-    use_cuda = False
+    use_cuda = args.cuda
 
     device = torch.device("cuda" if use_cuda else "cpu")
 
