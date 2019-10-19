@@ -6,7 +6,7 @@ from torchvision import datasets, transforms
 
 
 # FIFO for baseline
-def push_to_tensor_alternative(tensor, x):
+def queue(tensor, x):
     return torch.cat((tensor[1:], torch.Tensor([x])))
 
 
@@ -23,7 +23,8 @@ def reduceLabels(data, labels):
 
 
 def load_MNIST(train_bs, test_bs, labels):
-    data = datasets.MNIST('../data/2', train=True, download=True,
+    data = datasets.MNIST('../data', train=True, download=True,
+
                           transform=transforms.Compose([
                               transforms.ToTensor(),
                               transforms.Normalize((0.1307,), (0.3081,))

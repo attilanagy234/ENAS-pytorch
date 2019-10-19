@@ -8,7 +8,7 @@ import tensorflow as tf
 
 class FixedEnasChild(nn.Module):
 
-    def __init__(self, enas_config, num_layers, lr=0.01, keep_prob=0.2, momentum=0.5, num_classes=10, input_shape=28, out_filters=10, num_branches=6, input_channels=3,  t0=10, eta_min=0.001):
+    def __init__(self, enas_config, num_layers, lr,input_shape, out_filters, keep_prob=0.8, momentum=0.5, num_classes=10,  num_branches=6, input_channels=3,  t0=10, eta_min=0.001):
         super(FixedEnasChild, self).__init__()
         self.config = enas_config
         self.num_branches = num_branches
@@ -36,7 +36,7 @@ class FixedEnasChild(nn.Module):
             last_kernel = currentLayer.layer.kernel
 
 
-            #TODO: bug: expected 10 channels but got 20 instead:
+            # bug: expected 10 channels but got 20 instead:
             # if int(layer_id) in self.pool_layers:
             #
             #     reductionLayer = FactorizedReduction(out_filters, out_filters*2, 2)
@@ -91,9 +91,9 @@ class FixedEnasChild(nn.Module):
 
 class SharedEnasChild(nn.Module):
 
-    def __init__(self, num_layers, lr=0.01, keep_prob=0.2, momentum=0.5, num_classes=10,
-                 input_channels=3, input_shape=28, out_filters=10, num_branches=6,
-                 t0=10, eta_min=0.001):
+    def __init__(self, num_layers, lr=0.01, keep_prob=0.8, momentum=0.5, num_classes=10,
+                 input_channels=3, input_shape=32, out_filters=10, num_branches=6,
+                 t0=10, eta_min=0.001, l2_decay=2e-4):
 
         super(SharedEnasChild, self).__init__()
         self.num_branches = num_branches
@@ -104,6 +104,7 @@ class SharedEnasChild(nn.Module):
         self.num_layers = num_layers
         self.layerList = nn.ModuleList([])
         self.reductionList = nn.ModuleList([])  # for reduction layers
+        self.l2_decay = l2_decay
 
 
         pool_distance = self.num_layers // 3
@@ -130,11 +131,10 @@ class SharedEnasChild(nn.Module):
         self.dropout = nn.Dropout(p=1. - self.keep_prob)
         self.fc1 = nn.Linear(in_features=out_filters, out_features=num_classes)
 
-        self.optimizer = torch.optim.SGD(self.parameters(), lr=lr, momentum=momentum)
+        self.optimizer = torch.optim.SGD(self.parameters(), lr=lr, momentum=momentum, weight_decay=self.l2_decay)
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=t0, eta_min=eta_min, last_epoch=-1) #according to enas paper: lmax = 0.05, lmin=0.001, t0 = 10, tmul=2
-    def forward(self, x, config):
 
-        #TODO: prevoutputs = preylayers?
+    def forward(self, x, config):
 
         prev_outputs = []
 
