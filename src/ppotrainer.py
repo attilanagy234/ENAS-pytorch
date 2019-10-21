@@ -3,11 +3,11 @@ import torch
 import torch.nn.functional as F
 from collections import namedtuple
 # from controller import Controller
-from src.PPOController import *
+from PPOController import *
 # from child import Child
-from src.EnasChild import *
-from src.utils import queue, get_logger
-from src.kindergarden import *
+from EnasChild import *
+from utils import queue, get_logger
+from kindergarden import *
 import numpy as np
 
 layer = namedtuple('layer', 'kernel_size stride pooling_size input_dim output_dim')
