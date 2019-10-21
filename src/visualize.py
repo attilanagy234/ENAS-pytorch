@@ -35,4 +35,4 @@ def draw_conf(conf):
     child.edges(edges)
     return child
 
-
+draw_conf(testconf)

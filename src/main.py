@@ -5,10 +5,10 @@ import numpy as np
 import yaml as yaml
 from tensorboardX import SummaryWriter
 import datetime
-from trainer import *
-from ppotrainer import *
-from utils import *
-from kindergarden import *
+from src.trainer import *
+from src.ppotrainer import *
+from src.utils import *
+from src.kindergarden import *
 from pathlib import Path
 import time
 

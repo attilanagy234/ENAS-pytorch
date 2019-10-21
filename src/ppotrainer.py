@@ -3,11 +3,11 @@ import torch
 import torch.nn.functional as F
 from collections import namedtuple
 # from controller import Controller
-from PPOController import *
+from src.PPOController import *
 # from child import Child
-from EnasChild import *
-from utils import queue, get_logger
-from kindergarden import *
+from src.EnasChild import *
+from src.utils import queue, get_logger
+from src.kindergarden import *
 import numpy as np
 
 layer = namedtuple('layer', 'kernel_size stride pooling_size input_dim output_dim')
@@ -35,10 +35,13 @@ class PPOTrainer(object):
                  epoch_child,
                  isShared,
                  eps_clip=0.2,
-                 K_epochs=5):
+                 K_epochs=10,
+                 path = ""):
 
         self.writer = writer
         self.log_interval = log_interval
+        self.path=path
+
         self.num_of_children = num_of_children
         self.K_epochs = K_epochs
 
@@ -179,7 +182,7 @@ class PPOTrainer(object):
                 self.bestchilds.add(conf, validation_accuracy)
 
                 reward = torch.tensor(validation_accuracy).detach()
-                # reward += sampled_entropies * entropy_weight
+                reward += sampled_entropies * entropy_weight
 
                 # calculate advantage with baseline (moving avg)
 
@@ -198,10 +201,10 @@ class PPOTrainer(object):
             best_child_idx = torch.argmax(epoch_valacc)
             best_child_conf = epoch_childs[best_child_idx]
 
-            message = "epoch id: " + str(epoch_idx) + " best valacc" + str(epoch_valacc[best_child_idx].item())\
+            message = " best valacc" + str(epoch_valacc[best_child_idx].item())\
                       + ' - config: ' + str(best_child_conf)
 
-            self.writer.add_text("best child", message)
+            self.writer.add_text("best child", message, global_step=epoch_idx)
 
             if epoch_idx % child_retrain_interval == 0:
 
@@ -209,6 +212,8 @@ class PPOTrainer(object):
 
                 print("current best childs: ", self.bestchilds.bestchilds)
                 self.writer.add_scalar("retrainerd child valacc", retrained_valacc, epoch_idx)
+
+                self.save(epoch_idx)
 
             old_branch_logprobs, old_skip_logprobs = old_model.memory.get_logprobs()
             old_rewards = old_model.memory.rewards
@@ -383,9 +388,9 @@ class PPOTrainer(object):
             validacc, validloss = self.test_child(child, config, device, valid_loader)
 
 
-            self.writer.add_scalars(main_tag="retrainded_child-" + str(epoch_idx),
+            self.writer.add_scalars(main_tag="retrainded_child-" + str(c_epoch_idx),
                                     tag_scalar_dict={
-                                        "trainloss": epoch_loss,
+                                        "trainloss": epoch_loss/batch_idx,
                                         "validloss": validloss,
                                         "validAcc ": validacc}
                                    ,global_step=epoch_idx)
@@ -394,3 +399,9 @@ class PPOTrainer(object):
         self.writer.add_scalar("child retrain valloss", validloss, epoch_idx)
 
         return validacc, validloss
+
+
+    def save(self, epoch):
+        print("model saved")
+        path2 = self.path + "/" + str(epoch)
+        torch.save(self.controller.state_dict(), self.path)

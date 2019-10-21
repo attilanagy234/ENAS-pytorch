@@ -3,11 +3,11 @@ import torch
 import torch.nn.functional as F
 from collections import namedtuple
 # from controller import Controller
-from EnasController import EnasController
+from src.EnasController import EnasController
 # from child import Child
-from EnasChild import *
-from utils import queue, get_logger
-from kindergarden import *
+from src.EnasChild import *
+from src.utils import queue, get_logger
+from src.kindergarden import *
 
 layer = namedtuple('layer', 'kernel_size stride pooling_size input_dim output_dim')
 
@@ -32,7 +32,8 @@ class Trainer(object):
                  eta_min,
                  t_mult,
                  epoch_child,
-                 isShared):
+                 isShared,
+                 path = ""):
 
         self.writer = writer
         self.log_interval = log_interval
@@ -56,6 +57,7 @@ class Trainer(object):
         self.t0 = t0
         self.eta_min = eta_min
         self.t_mult = t_mult
+        self.path = path
 
 
         self.controller = EnasController(self.writer,
@@ -164,7 +166,7 @@ class Trainer(object):
 
 
                 reward = torch.tensor(validation_accuracy).detach()
-                # reward += sampled_entropies * entropy_weight
+                reward += sampled_entropies * entropy_weight
 
                 # calculate advantage with baseline (moving avg)
                 baseline = prev_runs.mean()  # substract baseline to reduce variance in rewards
@@ -176,6 +178,8 @@ class Trainer(object):
                 loss -= sampled_logprobs * reward
                 epoch_valacc[child_idx] = validation_accuracy
 
+
+
                 # logging to tensorboard
                 self.writer.add_scalar("loss", loss.item(), global_step=step)
                 self.writer.add_scalar("reward", reward, global_step=step)
@@ -184,14 +188,18 @@ class Trainer(object):
                 self.writer.add_scalar("sampled_entropies", sampled_entropies, global_step=step)
                 self.writer.add_scalar("sampled_logprobs", sampled_logprobs, global_step=step)
 
-
             best_child_idx = torch.argmax(epoch_valacc)
             best_child_conf = epoch_childs[best_child_idx]
+
+            message = " best valacc" + str(epoch_valacc[best_child_idx].item()) \
+                      + ' - config: ' + str(best_child_conf)
+
+            self.writer.add_text("best child", message, global_step=epoch_idx)
 
             if epoch_idx % child_retrain_interval == 0:
                 retrained_valacc, retrained_loss = self.retrain(best_child_conf, device, train_loader, valid_loader, child_retrain_epoch, epoch_idx)
                 print("current best childs: ", self.bestchilds.bestchilds)
-                self.writer.add_scalar("retrainerd child valacc", retrained_valacc, epoch_idx)
+                self.save(epoch_idx)
 
             if epoch_idx != 0:
                 # trainig:
@@ -320,9 +328,9 @@ class Trainer(object):
             validacc, validloss = self.test_child(child, config, device, valid_loader)
 
 
-            self.writer.add_scalars(main_tag="retrainded_child-" + str(epoch_idx),
+            self.writer.add_scalars(main_tag="retrainded_child-" + str(c_epoch_idx),
                                     tag_scalar_dict={
-                                        "trainloss": epoch_loss,
+                                        "trainloss": epoch_loss/batch_idx,
                                         "validloss": validloss,
                                         "validAcc ": validacc}
                                    ,global_step=epoch_idx)
@@ -331,3 +339,9 @@ class Trainer(object):
         self.writer.add_scalar("child retrain valloss", validloss, epoch_idx)
 
         return validacc, validloss
+
+
+    def save(self, epoch):
+        print("model saved")
+        path2 = self.path + "/" + str(epoch)
+        torch.save(self.controller.state_dict(), self.path)
