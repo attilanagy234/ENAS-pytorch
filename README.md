@@ -2,7 +2,7 @@
 
 
 ## Main repository for our university research in the topic of Neural Architecture Search
-The corresponding code for the paper we submitted to the Scientific Students' Associaton annual conference at the Budapest University of Technology and Economics can be found here.
+The corresponding code for the paper we submitted to the Scientific Students' Associaton's annual conference at the Budapest University of Technology and Economics can be found here.
 
 
 ## Authors:
